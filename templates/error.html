@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>오류 - TOPIK 문제 생성기</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="header-logo">
+                    <i class="fas fa-book"></i>
+                    TOPIK 문제 생성기
+                </a>
+                <div class="header-actions">
+                    <a href="/" class="btn btn-ghost">
+                        <i class="fas fa-home"></i> 홈으로
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="card" style="text-align: center; padding: 3rem 2rem;">
+                <i class="fas fa-exclamation-circle"
+                    style="font-size: 3rem; color: var(--danger); margin-bottom: 1rem;"></i>
+                <h2>오류가 발생했습니다</h2>
+                <p>{{ message }}</p>
+                <div style="margin-top: 2rem;">
+                    <a href="/" class="btn btn-primary">
+                        <i class="fas fa-home"></i> 메인으로 돌아가기
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>콘텐츠 상세 - TOPIK 문제 생성기</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="header-logo">
+                    <i class="fas fa-book"></i>
+                    TOPIK 문제 생성기
+                </a>
+                <div class="header-actions">
+                    <a href="/confirmed" class="btn btn-ghost">
+                        <i class="fas fa-list"></i> 저장 목록
+                    </a>
+                    <a href="/" class="btn btn-ghost">
+                        <i class="fas fa-home"></i> 홈으로
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        {% if item.type == 'dialogue' %}
+                        <i class="fas fa-comments"></i>
+                        {% elif 'reading' in item.type %}
+                        <i class="fas fa-book-open"></i>
+                        {% elif 'listening' in item.type %}
+                        <i class="fas fa-headphones"></i>
+                        {% else %}
+                        <i class="fas fa-file-alt"></i>
+                        {% endif %}
+                        {{ item.topic or item.title or item.situation or '제목 없음' }}
+                    </h2>
+                    <div class="tag-container">
+                        <span class="tag type-tag">
+                            <i class="fas fa-tag"></i> {{ item.type }}
+                        </span>
+                        {% if item.level %}
+                        <span class="tag level-tag">
+                            <i class="fas fa-layer-group"></i> {{ item.level }}
+                        </span>
+                        {% endif %}
+                        {% if item.place %}
+                        <span class="tag">
+                            <i class="fas fa-map-marker-alt"></i> {{ item.place }}
+                        </span>
+                        {% endif %}
+                        {% if item.tokens %}
+                        <span class="tag count-tag">
+                            <i class="fas fa-keyboard"></i> {{ item.tokens }} 토큰
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="tabs">
+                        <div class="tab active" data-tab="preview">
+                            <i class="fas fa-eye"></i> 미리보기
+                        </div>
+                        <div class="tab" data-tab="json">
+                            <i class="fas fa-code"></i> JSON 데이터
+                        </div>
+                    </div>
+
+                    <!-- 미리보기 탭 -->
+                    <div class="tab-content" id="preview-tab">
+                        {% if item.topic %}
+                        <div class="form-group">
+                            <label class="form-label">주제</label>
+                            <div class="script-container">{{ item.topic }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if item.place %}
+                        <div class="form-group">
+                            <label class="form-label">장소</label>
+                            <div class="script-container">{{ item.place }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if item.keywords %}
+                        <div class="form-group">
+                            <label class="form-label">핵심 키워드</label>
+                            <div class="tag-container">
+                                {% for keyword in item.keywords %}
+                                <span class="tag">{{ keyword }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if item.situation %}
+                        <div class="form-group">
+                            <label class="form-label">상황</label>
+                            <div class="script-container">{{ item.situation }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if item.type == 'dialogue' and item.dialogue %}
+                        <div class="form-group">
+                            <label class="form-label">대화</label>
+                            <div class="dialogue-box">
+                                {% for line in item.dialogue %}
+                                {% if 'A:' in line %}
+                                <div class="msg a">{{ line.replace('A:', '').strip() }}</div>
+                                {% elif 'B:' in line %}
+                                <div class="msg b">{{ line.replace('B:', '').strip() }}</div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% elif item.text %}
+                        <div class="form-group">
+                            <label class="form-label">내용</label>
+                            <div class="script-container">{{ item.text }}</div>
+                        </div>
+                        {% elif item.script %}
+                        <div class="form-group">
+                            <label class="form-label">내용</label>
+                            <div class="script-container">{{ item.script }}</div>
+                        </div>
+                        {% endif %}
+
+                        {% if item.choices %}
+                        <div class="form-group">
+                            <label class="form-label">선택지</label>
+                            <div class="script-container">
+                                <ol>
+                                    {% for choice in item.choices %}
+                                    <li>
+                                        {{ choice }}
+                                        {% if loop.index0 == item.answer_index %}
+                                        <span class="tag level-tag">정답</span>
+                                        {% endif %}
+                                    </li>
+                                    {% endfor %}
+                                </ol>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- JSON 탭 -->
+                    <div class="tab-content hidden" id="json-tab">
+                        <div class="form-group">
+                            <label class="form-label">JSON 데이터</label>
+                            <div class="json-editor-container">
+                                <pre
+                                    style="background: var(--light); padding: 1rem; border-radius: var(--radius); overflow: auto; font-family: var(--font-mono); font-size: 0.875rem; line-height: 1.6; white-space: pre-wrap;">{{ item | tojson(indent=2) }}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex gap-2">
+                        <a href="/confirmed" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> 목록으로 돌아가기
+                        </a>
+                        <form action="/generate" method="post" style="display: inline;">
+                            <input type="hidden" name="qtype" value="{{ item.type }}">
+                            <input type="hidden" name="level" value="{{ item.level }}">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> 같은 유형 새로 생성
+                            </button>
+                        </form>
+                        <a href="/delete/{{ item.id }}" class="btn btn-outline-danger"
+                            onclick="return confirm('정말 이 콘텐츠를 삭제하시겠습니까?');">
+                            <i class="fas fa-trash"></i> 삭제
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log("콘텐츠 상세 페이지 로드됨");
+
+            // 탭 기능
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function () {
+                    // 탭 활성화 상태 변경
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+
+                    // 콘텐츠 표시 전환
+                    const tabId = this.getAttribute('data-tab');
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    document.getElementById(tabId + '-tab').classList.remove('hidden');
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

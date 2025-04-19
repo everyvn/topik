@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>저장된 콘텐츠 - TOPIK 문제 생성기</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="header-logo">
+                    <i class="fas fa-book"></i>
+                    TOPIK 문제 생성기
+                </a>
+                <div class="header-actions">
+                    <a href="/" class="btn btn-ghost">
+                        <i class="fas fa-home"></i> 홈으로
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-list-check"></i> 저장된 콘텐츠
+                    </h2>
+                    <div class="d-flex gap-2">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> 새 콘텐츠 생성
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if data and data|length > 0 %}
+                    <div class="tabs">
+                        <div class="tab active" data-tab="grid">
+                            <i class="fas fa-th-large"></i> 그리드 보기
+                        </div>
+                        <div class="tab" data-tab="list">
+                            <i class="fas fa-list"></i> 목록 보기
+                        </div>
+                    </div>
+
+                    <!-- 그리드 보기 -->
+                    <div class="tab-content" id="grid-tab">
+                        <div class="content-list">
+                            {% for item in data %}
+                            {% if item is mapping %}
+                            <div class="content-card">
+                                <div class="content-card-header">
+                                    <h3 class="content-card-title">
+                                        {% if item.type == 'dialogue' %}
+                                        <i class="fas fa-comments"></i>
+                                        {% elif 'reading' in item.type %}
+                                        <i class="fas fa-book-open"></i>
+                                        {% elif 'listening' in item.type %}
+                                        <i class="fas fa-headphones"></i>
+                                        {% else %}
+                                        <i class="fas fa-file-alt"></i>
+                                        {% endif %}
+                                        {{ item.topic or item.title or item.situation or '제목 없음' }}
+                                    </h3>
+                                </div>
+                                <div class="content-card-body">
+                                    <div class="tag-container">
+                                        <span class="tag type-tag">{{ item.type }}</span>
+                                        {% if item.level %}
+                                        <span class="tag level-tag">{{ item.level }}</span>
+                                        {% endif %}
+                                        {% if item.place %}
+                                        <span class="tag">
+                                            <i class="fas fa-map-marker-alt"></i> {{ item.place }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+
+                                    {% if item.keywords %}
+                                    <div class="tag-container">
+                                        {% for keyword in item.keywords[:3] %}
+                                        <span class="tag">{{ keyword }}</span>
+                                        {% endfor %}
+                                        {% if item.keywords|length > 3 %}
+                                        <span class="tag">+{{ item.keywords|length - 3 }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+
+                                    {% if item.type == 'dialogue' and item.dialogue %}
+                                    <div class="dialogue-box" style="max-height: 150px; overflow-y: auto;">
+                                        {% for line in item.dialogue[:3] %}
+                                        {% if 'A:' in line %}
+                                        <div class="msg a" style="max-width: 90%">{{ line.replace('A:', '').strip() }}
+                                        </div>
+                                        {% elif 'B:' in line %}
+                                        <div class="msg b" style="max-width: 90%">{{ line.replace('B:', '').strip() }}
+                                        </div>
+                                        {% endif %}
+                                        {% endfor %}
+                                        {% if item.dialogue|length > 3 %}
+                                        <div class="text-center text-gray text-sm">+ {{ item.dialogue|length - 3 }}개 더보기
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% elif item.text %}
+                                    <div class="script-container" style="max-height: 100px; overflow-y: auto;">
+                                        {{ item.text[:150] }}{% if item.text|length > 150 %}...{% endif %}
+                                    </div>
+                                    {% elif item.script %}
+                                    <div class="script-container" style="max-height: 100px; overflow-y: auto;">
+                                        {{ item.script[:150] }}{% if item.script|length > 150 %}...{% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="content-card-footer">
+                                    <a href="/content/{{ item.id }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> 상세보기
+                                    </a>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="content-card">
+                                <div class="content-card-header">
+                                    <h3 class="content-card-title">
+                                        <i class="fas fa-exclamation-triangle"></i> 유효하지 않은 데이터
+                                    </h3>
+                                </div>
+                                <div class="content-card-body">
+                                    <div class="alert alert-danger">
+                                        이 항목은 유효한 JSON 객체가 아닙니다.
+                                    </div>
+                                </div>
+                                <div class="content-card-footer">
+                                    <a href="/" class="btn btn-sm btn-outline-danger">
+                                        <i class="fas fa-trash"></i> 삭제 필요
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- 목록 보기 -->
+                    <div class="tab-content hidden" id="list-tab">
+                        <table class="w-full" style="border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid var(--gray-light);">
+                                    <th style="text-align: left; padding: 0.75rem;">유형</th>
+                                    <th style="text-align: left; padding: 0.75rem;">제목/주제</th>
+                                    <th style="text-align: center; padding: 0.75rem;">난이도</th>
+                                    <th style="text-align: center; padding: 0.75rem;">장소</th>
+                                    <th style="text-align: right; padding: 0.75rem;">작업</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in data %}
+                                {% if item is mapping %}
+                                <tr style="border-bottom: 1px solid var(--gray-light);">
+                                    <td style="padding: 0.75rem;">
+                                        <span class="tag type-tag">
+                                            {% if item.type == 'dialogue' %}
+                                            <i class="fas fa-comments"></i>
+                                            {% elif 'reading' in item.type %}
+                                            <i class="fas fa-book-open"></i>
+                                            {% elif 'listening' in item.type %}
+                                            <i class="fas fa-headphones"></i>
+                                            {% else %}
+                                            <i class="fas fa-file-alt"></i>
+                                            {% endif %}
+                                            {{ item.type }}
+                                        </span>
+                                    </td>
+                                    <td style="padding: 0.75rem;">{{ item.topic or item.title or item.situation or '제목
+                                        없음' }}</td>
+                                    <td style="text-align: center; padding: 0.75rem;">
+                                        {% if item.level %}
+                                        <span class="tag level-tag">{{ item.level }}</span>
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td style="text-align: center; padding: 0.75rem;">
+                                        {% if item.place %}
+                                        {{ item.place }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td style="text-align: right; padding: 0.75rem;">
+                                        <a href="/content/{{ item.id }}" class="btn btn-sm btn-ghost">
+                                            <i class="fas fa-eye"></i> 보기
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr
+                                    style="border-bottom: 1px solid var(--gray-light); background-color: var(--danger-light);">
+                                    <td colspan="5" style="padding: 0.75rem; text-align: center;">
+                                        <i class="fas fa-exclamation-triangle"></i> 유효하지 않은 데이터
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div style="text-align: center; padding: 3rem 1rem;">
+                        <i class="fas fa-inbox"
+                            style="font-size: 3rem; color: var(--gray-light); margin-bottom: 1rem;"></i>
+                        <h3>저장된 콘텐츠가 없습니다</h3>
+                        <p>새로운 콘텐츠를 생성하고 저장해보세요.</p>
+                        <a href="/" class="btn btn-primary mt-4">
+                            <i class="fas fa-plus"></i> 새 콘텐츠 생성하기
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // 디버깅 메시지
+            console.log("저장된 콘텐츠 페이지 로드됨");
+
+            // 데이터 정보 출력
+            const dataElements = document.querySelectorAll('.content-card');
+            console.log("불러온 콘텐츠 수: " + dataElements.length);
+
+            // 탭 기능
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function () {
+                    // 탭 활성화 상태 변경
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+
+                    // 콘텐츠 표시 전환
+                    const tabId = this.getAttribute('data-tab');
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    document.getElementById(tabId + '-tab').classList.remove('hidden');
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>
