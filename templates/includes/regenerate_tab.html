@@ -1,0 +1,105 @@
+<!-- 재생성 탭 내용 -->
+<form action="/regenerate" method="post" id="regenerate-form">
+    <input type="hidden" name="content" id="regenerate-content-field" value='{{ content | tojson }}'>
+
+    <div class="form-group">
+        <label for="user_comment" class="form-label">
+            <i class="fas fa-lightbulb"></i>
+            추가 요구사항을 입력해주세요
+        </label>
+        <div class="form-hint">
+            콘텐츠 길이, 추가 키워드, 특정 문법 요소, 어휘 수준 등 원하는 요구사항을 자유롭게 작성하세요.
+        </div>
+        <textarea name="user_comment" id="user_comment" class="form-control" rows="6"
+            placeholder="예시: 800자 이상으로 길이를 늘려주세요. / '~습니다'체로 통일해주세요. / 다음 단어들을 꼭 포함해주세요: 문화, 전통, 발전">{{ user_comment or '' }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-sync-alt"></i> 요구사항 반영하여 재생성하기
+        </button>
+    </div>
+
+    {% if parsed.user_comment %}
+    <div class="form-group mt-4">
+        <label class="form-label">이전 요구사항</label>
+        <div class="script-container" style="background-color: #f0f9ff; border-color: #bae6fd;">
+            {{ parsed.user_comment }}
+        </div>
+    </div>
+    {% endif %}
+</form>
+
+<div class="alert alert-warning mt-4">
+    <i class="fas fa-info-circle"></i>
+    <strong>참고:</strong> 재생성을 요청하면 API 호출이 발생하며, 몇 초가 소요될 수 있습니다.
+    요구사항을 구체적으로 작성할수록 더 정확한 결과를 얻을 수 있습니다.
+</div>
+
+<!-- 간소화된 원본 비교 섹션 -->
+{% if parsed.regenerated or parsed.original_content %}
+<div class="card mt-4">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-exchange-alt"></i> 원본 비교
+        </h3>
+    </div>
+    <div class="card-body">
+        <div class="tabs" id="comparison-tabs">
+            <div class="tab active" data-compare-tab="side-by-side">
+                <i class="fas fa-columns"></i> 비교 보기
+            </div>
+            <div class="tab" data-compare-tab="original">
+                <i class="fas fa-history"></i> 원본
+            </div>
+        </div>
+
+        <!-- 비교 보기 -->
+        <div class="compare-tab-content" id="side-by-side-tab">
+            <div class="d-flex gap-4" style="overflow-x: auto;">
+                <!-- 원본 콘텐츠 -->
+                <div class="w-full" style="min-width: 45%;">
+                    <h4>원본</h4>
+                    {% if parsed.original_content %}
+                    {% with content=parsed.original_content %}
+                    {% include 'includes/comparison.html' %}
+                    {% endwith %}
+                    {% else %}
+                    <div class="alert alert-info">원본 정보 없음</div>
+                    {% endif %}
+                </div>
+
+                <!-- 화살표 -->
+                <div style="display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
+                    <i class="fas fa-arrow-right" style="font-size: 1.5rem; color: var(--gray);"></i>
+                </div>
+
+                <!-- 현재 콘텐츠 -->
+                <div class="w-full" style="min-width: 45%;">
+                    <h4>현재</h4>
+                    {% with content=parsed %}
+                    {% include 'includes/comparison.html' %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 원본 버전 -->
+        <div class="compare-tab-content hidden" id="original-tab">
+            {% if parsed.original_content %}
+            <div class="form-group">
+                <label class="form-label">원본 콘텐츠</label>
+                {% with content=parsed.original_content %}
+                {% include 'includes/comparison.html' %}
+                {% endwith %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                원본 콘텐츠 정보가 없습니다.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}

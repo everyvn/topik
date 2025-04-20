@@ -64,6 +64,11 @@
                             <i class="fas fa-keyboard"></i> {{ item.tokens }} 토큰
                         </span>
                         {% endif %}
+                        {% if item.regenerated %}
+                        <span class="tag" style="background-color: #dbeafe; color: #1e40af;">
+                            <i class="fas fa-sync-alt"></i> 재생성됨
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="card-body">
@@ -78,6 +83,71 @@
 
                     <!-- 미리보기 탭 -->
                     <div class="tab-content" id="preview-tab">
+                        {% if item.user_comment %}
+                        <div class="form-group">
+                            <label class="form-label">사용자 요구사항</label>
+                            <div class="script-container" style="background-color: #f0f9ff; border-color: #bae6fd;">
+                                {{ item.user_comment }}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- 원본 콘텐츠 비교 섹션 -->
+                        {% if item.regenerated and item.original_content %}
+                        <div class="form-group">
+                            <label class="form-label">
+                                <i class="fas fa-history"></i> 원본 콘텐츠와 비교
+                            </label>
+                            <div class="tabs" id="comparison-tabs">
+                                <div class="tab active" data-compare-tab="side-by-side">
+                                    <i class="fas fa-columns"></i> 비교 보기
+                                </div>
+                                <div class="tab" data-compare-tab="original">
+                                    <i class="fas fa-history"></i> 원본만 보기
+                                </div>
+                            </div>
+
+                            <!-- 비교 보기 -->
+                            <div class="compare-tab-content" id="side-by-side-tab">
+                                <div class="d-flex gap-4" style="overflow-x: auto;">
+                                    <!-- 원본 콘텐츠 -->
+                                    <div class="w-full" style="min-width: 45%;">
+                                        <h4>원본 버전</h4>
+                                        {% with content=item.original_content %}
+                                        {% include 'includes/comparison.html' %}
+                                        {% endwith %}
+                                    </div>
+
+                                    <!-- 화살표 -->
+                                    <div
+                                        style="display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
+                                        <i class="fas fa-arrow-right"
+                                            style="font-size: 1.5rem; color: var(--gray);"></i>
+                                    </div>
+
+                                    <!-- 현재 콘텐츠 -->
+                                    <div class="w-full" style="min-width: 45%;">
+                                        <h4>재생성 버전</h4>
+                                        {% with content=item %}
+                                        {% include 'includes/comparison.html' %}
+                                        {% endwith %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 원본만 보기 -->
+                            <div class="compare-tab-content hidden" id="original-tab">
+                                <div class="form-group">
+                                    <label class="form-label">원본 콘텐츠</label>
+                                    {% with content=item.original_content %}
+                                    {% include 'includes/comparison.html' %}
+                                    {% endwith %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- 기본 콘텐츠 정보 표시 -->
                         {% if item.topic %}
                         <div class="form-group">
                             <label class="form-label">주제</label>
@@ -110,29 +180,11 @@
                         </div>
                         {% endif %}
 
-                        {% if item.type == 'dialogue' and item.dialogue %}
-                        <div class="form-group">
-                            <label class="form-label">대화</label>
-                            <div class="dialogue-box">
-                                {% for line in item.dialogue %}
-                                {% if 'A:' in line %}
-                                <div class="msg a">{{ line.replace('A:', '').strip() }}</div>
-                                {% elif 'B:' in line %}
-                                <div class="msg b">{{ line.replace('B:', '').strip() }}</div>
-                                {% endif %}
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% elif item.text %}
-                        <div class="form-group">
-                            <label class="form-label">내용</label>
-                            <div class="script-container">{{ item.text }}</div>
-                        </div>
-                        {% elif item.script %}
-                        <div class="form-group">
-                            <label class="form-label">내용</label>
-                            <div class="script-container">{{ item.script }}</div>
-                        </div>
+                        <!-- 기본 내용 (비교 섹션에 없는 경우만 표시) -->
+                        {% if not (item.regenerated and item.original_content) %}
+                        {% with content=item %}
+                        {% include 'includes/comparison.html' %}
+                        {% endwith %}
                         {% endif %}
 
                         {% if item.choices %}
@@ -196,15 +248,24 @@
             tabs.forEach(tab => {
                 tab.addEventListener('click', function () {
                     // 탭 활성화 상태 변경
-                    tabs.forEach(t => t.classList.remove('active'));
+                    const tabGroup = this.closest('.tabs').querySelectorAll('.tab');
+                    tabGroup.forEach(t => t.classList.remove('active'));
                     this.classList.add('active');
 
                     // 콘텐츠 표시 전환
-                    const tabId = this.getAttribute('data-tab');
-                    document.querySelectorAll('.tab-content').forEach(content => {
-                        content.classList.add('hidden');
-                    });
-                    document.getElementById(tabId + '-tab').classList.remove('hidden');
+                    if (this.hasAttribute('data-tab')) {
+                        const tabId = this.getAttribute('data-tab');
+                        document.querySelectorAll('.tab-content').forEach(content => {
+                            content.classList.add('hidden');
+                        });
+                        document.getElementById(tabId + '-tab').classList.remove('hidden');
+                    } else if (this.hasAttribute('data-compare-tab')) {
+                        const tabId = this.getAttribute('data-compare-tab');
+                        document.querySelectorAll('.compare-tab-content').forEach(content => {
+                            content.classList.add('hidden');
+                        });
+                        document.getElementById(tabId + '-tab').classList.remove('hidden');
+                    }
                 });
             });
         });

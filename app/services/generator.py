@@ -66,6 +66,10 @@ class ContentGenerator:
                 # 레벨 정보 추가
                 if "level" not in content_data:
                     content_data["level"] = level
+                
+                # 원본 프롬프트 저장
+                content_data["original_prompt"] = prompt
+                
                 logger.info(f"콘텐츠 생성 성공: {content_type} / {level}")
                 return content_data
             except json.JSONDecodeError:
@@ -74,7 +78,8 @@ class ContentGenerator:
                     "error": "GPT 응답이 JSON 형식이 아닙니다.",
                     "raw": result,
                     "type": content_type,
-                    "level": level
+                    "level": level,
+                    "original_prompt": prompt
                 }
                 
         except Exception as e:
@@ -84,6 +89,138 @@ class ContentGenerator:
                 "type": content_type,
                 "level": level
             }
+    
+    def regenerate(self, content_data: Dict[str, Any], user_comment: str) -> Dict[str, Any]:
+        """
+        기존 콘텐츠와 사용자 요구사항을 기반으로 콘텐츠를 재생성합니다.
+        
+        Args:
+            content_data: 기존 콘텐츠 데이터
+            user_comment: 사용자의 추가 요구사항
+            
+        Returns:
+            재생성된 콘텐츠의 딕셔너리
+        """
+        if not self.client:
+            logger.warning("API 키가 설정되지 않아 모의 콘텐츠를 반환합니다.")
+            content_data["regenerated"] = True
+            content_data["user_comment"] = user_comment
+            return content_data
+            
+        try:
+            # 기존 콘텐츠 정보 추출
+            content_type = content_data.get("type", "")
+            level = content_data.get("level", "")
+            
+            logger.info(f"콘텐츠 재생성 시작: {content_type} / {level}")
+            
+            # 원본 콘텐츠를 JSON 문자열로 변환
+            original_content_str = json.dumps(content_data, ensure_ascii=False)
+            
+            # 원본 프롬프트 가져오기 (없으면 템플릿에서 재생성)
+            original_prompt = content_data.get("original_prompt", "")
+            if not original_prompt and content_type in TEMPLATES:
+                original_prompt = TEMPLATES[content_type].format(level=level)
+            
+            # 재생성 프롬프트 구성
+            regenerate_prompt = f"""
+다음은 이전에 생성된 한국어 교육용 콘텐츠입니다:
+
+{original_content_str}
+
+이 콘텐츠를 다음 요구사항에 맞게 수정해 주세요:
+
+{user_comment}
+
+응답은 반드시 원본과 동일한 JSON 형식으로 제공해 주세요.
+"""
+            
+            # GPT 호출
+            response = self.client.chat.completions.create(
+                model=GPT_MODEL,
+                messages=[
+                    {"role": "system", "content": "당신은 한국어 교육용 콘텐츠를 생성하는 AI입니다."},
+                    {"role": "user", "content": f"원본 요청: {original_prompt}"},
+                    {"role": "user", "content": regenerate_prompt}
+                ],
+                temperature=0.7
+            )
+            
+            result = response.choices[0].message.content.strip()
+            
+            
+            # 결과 파싱 및 반환
+            try:
+                # JSON 문자열 전처리 - 잘못된 이스케이프 문자 처리
+                cleaned_result = result
+                
+                # 따옴표 안에 이스케이프되지 않은 따옴표가 있는 경우 수정 시도
+                try:
+                    new_content_data = json.loads(cleaned_result)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"첫 번째 JSON 파싱 시도 실패: {str(e)}")
+                    
+                    # 응답에서 JSON 부분만 추출 시도 (마크다운 코드 블록 등에서)
+                    import re
+                    json_pattern = r'```json\s*([\s\S]*?)\s*```|```\s*([\s\S]*?)\s*```|(\{[\s\S]*\})'
+                    json_matches = re.findall(json_pattern, cleaned_result)
+                    
+                    if json_matches:
+                        for match in json_matches:
+                            # 매치된 그룹 중 비어있지 않은 것 선택
+                            json_str = next((m for m in match if m), None)
+                            if json_str:
+                                try:
+                                    new_content_data = json.loads(json_str)
+                                    logger.info("JSON 블록에서 유효한 JSON 추출 성공")
+                                    break
+                                except json.JSONDecodeError:
+                                    continue
+                    
+                    # 여전히 파싱 실패 시 원본 콘텐츠 반환
+                    if 'new_content_data' not in locals():
+                        logger.error(f"재생성된 콘텐츠를 JSON으로 파싱할 수 없습니다: {cleaned_result}")
+                        # 오류 시 원본 콘텐츠에 오류 정보 추가
+                        content_data["error"] = f"GPT 응답이 JSON 형식이 아닙니다: {str(e)}"
+                        content_data["raw_regenerated"] = cleaned_result
+                        content_data["user_comment"] = user_comment
+                        return content_data
+                
+                # 원본 정보 유지
+                if "level" not in new_content_data and "level" in content_data:
+                    new_content_data["level"] = content_data["level"]
+                
+                if "type" not in new_content_data and "type" in content_data:
+                    new_content_data["type"] = content_data["type"]
+                
+                # 재생성 정보 추가
+                new_content_data["regenerated"] = True
+                new_content_data["user_comment"] = user_comment
+                new_content_data["original_prompt"] = original_prompt
+                
+                # 원본 콘텐츠 저장 (재생성 비교용)
+                new_content_data["original_content"] = content_data
+                
+                # ID 보존 (있는 경우)
+                if "id" in content_data:
+                    new_content_data["id"] = content_data["id"]
+                
+                logger.info(f"콘텐츠 재생성 성공: {content_type} / {level}")
+                return new_content_data
+            except Exception as e:
+                logger.error(f"재생성된 콘텐츠 처리 중 예외 발생: {str(e)}")
+                # 오류 시 원본 콘텐츠에 오류 정보 추가
+                content_data["error"] = f"콘텐츠 처리 중 오류: {str(e)}"
+                content_data["raw_regenerated"] = result
+                content_data["user_comment"] = user_comment
+                return content_data
+                
+        except Exception as e:
+            logger.error(f"콘텐츠 재생성 중 오류: {str(e)}")
+            # 오류 시 원본 콘텐츠에 오류 정보 추가
+            content_data["error"] = f"콘텐츠 재생성 중 오류가 발생했습니다: {str(e)}"
+            content_data["user_comment"] = user_comment
+            return content_data
     
     def _mock_content(self, content_type: str, level: str) -> Dict[str, Any]:
         """

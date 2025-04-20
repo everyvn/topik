@@ -1,0 +1,15 @@
+{% if content.type == 'dialogue' and content.dialogue %}
+<div class="dialogue-box">
+    {% for line in content.dialogue %}
+    {% if 'A:' in line %}
+    <div class="msg a">{{ line.replace('A:', '').strip() }}</div>
+    {% elif 'B:' in line %}
+    <div class="msg b">{{ line.replace('B:', '').strip() }}</div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% elif content.text %}
+<div class="script-container">{{ content.text }}</div>
+{% elif content.script %}
+<div class="script-container">{{ content.script }}</div>
+{% endif %}
