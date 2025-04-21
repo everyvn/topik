@@ -7,6 +7,9 @@
     <title>TOPIK 문제 생성기</title>
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- 코드미러 추가 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/theme/dracula.min.css">
 </head>
 
 <body>
@@ -233,11 +236,23 @@
                                 {% for line in parsed.dialogue %}
                                 {% if 'A:' in line %}
                                 <div class="msg a">
+                                    <div class="msg-controls">
+                                        <button type="button" class="delete-btn" title="대화 삭제"
+                                            onclick="removeDialogueLine(this.parentNode.parentNode)">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
                                     <textarea class="editable-msg" data-field="dialogue"
                                         data-index="{{ loop.index0 }}">{{ line.replace('A:', '').strip() }}</textarea>
                                 </div>
                                 {% elif 'B:' in line %}
                                 <div class="msg b">
+                                    <div class="msg-controls">
+                                        <button type="button" class="delete-btn" title="대화 삭제"
+                                            onclick="removeDialogueLine(this.parentNode.parentNode)">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
                                     <textarea class="editable-msg" data-field="dialogue"
                                         data-index="{{ loop.index0 }}">{{ line.replace('B:', '').strip() }}</textarea>
                                 </div>
@@ -282,6 +297,10 @@
                                                 loop.index0==parsed.answer_index %}checked{% endif %}>
                                             <span>정답</span>
                                         </label>
+                                        <button type="button" class="btn btn-sm btn-ghost text-danger"
+                                            onclick="removeChoice(this.closest('.form-group'), {{ loop.index0 }})">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 {% endfor %}
@@ -335,7 +354,44 @@
         </div>
     </main>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.3/mode/javascript/javascript.min.js"></script>
     <script src="/static/generator.js"></script>
+    <script>
+        // CodeMirror 설정 (JSON 에디터 강화)
+        document.addEventListener('DOMContentLoaded', function () {
+            const jsonEditorElem = document.getElementById('json-editor');
+            if (jsonEditorElem) {
+                const codeMirror = CodeMirror.fromTextArea(jsonEditorElem, {
+                    mode: { name: "javascript", json: true },
+                    theme: "dracula",
+                    lineNumbers: true,
+                    autoCloseBrackets: true,
+                    matchBrackets: true,
+                    indentWithTabs: false,
+                    indentUnit: 2,
+                    tabSize: 2,
+                    lineWrapping: true,
+                    viewportMargin: Infinity
+                });
+
+                // JSON 유효성 검사 및 포맷팅 버튼 연결
+                const validateJsonBtn = document.getElementById('validate-json');
+                if (validateJsonBtn) {
+                    validateJsonBtn.addEventListener('click', function () {
+                        codeMirror.save(); // textarea에 내용 업데이트
+                    });
+                }
+
+                const formatJsonBtn = document.getElementById('format-json');
+                if (formatJsonBtn) {
+                    formatJsonBtn.addEventListener('click', function () {
+                        codeMirror.save(); // textarea에 내용 업데이트
+                    });
+                }
+            }
+        });
+    </script>
 </body>
 
 </html>

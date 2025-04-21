@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>휴지통 - TOPIK 문제 생성기</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="header-logo">
+                    <i class="fas fa-book"></i>
+                    TOPIK 문제 생성기
+                </a>
+                <div class="header-actions">
+                    <a href="/confirmed" class="btn btn-ghost">
+                        <i class="fas fa-list"></i> 저장 목록
+                    </a>
+                    <a href="/" class="btn btn-ghost">
+                        <i class="fas fa-home"></i> 홈으로
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-trash"></i> 휴지통
+                    </h2>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-danger" onclick="showEmptyTrashModal()"
+                            title="휴지통 비우기">
+                            <i class="fas fa-trash-alt"></i> 휴지통 비우기
+                        </button>
+                        <a href="/confirmed" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> 저장 목록으로
+                        </a>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    {% if data and data|length > 0 %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        휴지통에 있는 항목은 복원하거나 영구 삭제할 수 있습니다. 휴지통의 항목은 30일 후 자동으로 삭제됩니다.
+                    </div>
+
+                    <div class="content-list">
+                        {% for item in data %}
+                        {% if item is mapping %}
+                        <div class="content-card">
+                            <div class="content-card-header">
+                                <h3 class="content-card-title">
+                                    {% if item.type == 'dialogue' %}
+                                    <i class="fas fa-comments"></i>
+                                    {% elif 'reading' in item.type %}
+                                    <i class="fas fa-book-open"></i>
+                                    {% elif 'listening' in item.type %}
+                                    <i class="fas fa-headphones"></i>
+                                    {% else %}
+                                    <i class="fas fa-file-alt"></i>
+                                    {% endif %}
+                                    {{ item.topic or item.title or item.situation or '제목 없음' }}
+                                </h3>
+                            </div>
+                            <div class="content-card-body">
+                                <div class="tag-container">
+                                    <span class="tag type-tag">{{ item.type }}</span>
+                                    {% if item.level %}
+                                    <span class="tag level-tag">{{ item.level }}</span>
+                                    {% endif %}
+                                    {% if item.trashed_at %}
+                                    <span class="tag"
+                                        style="background-color: var(--danger-light); color: var(--danger);"
+                                        title="휴지통으로 이동된 날짜">
+                                        <i class="fas fa-calendar-times"></i> {{ item.trashed_at.split('T')[0] }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+
+                                {% if item.keywords %}
+                                <div class="tag-container">
+                                    {% for keyword in item.keywords[:3] %}
+                                    <span class="tag">{{ keyword }}</span>
+                                    {% endfor %}
+                                    {% if item.keywords|length > 3 %}
+                                    <span class="tag">+{{ item.keywords|length - 3 }}</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                {% if item.type == 'dialogue' and item.dialogue %}
+                                <div class="dialogue-box" style="max-height: 150px; overflow-y: auto;">
+                                    {% for line in item.dialogue[:2] %}
+                                    {% if 'A:' in line %}
+                                    <div class="msg a" style="max-width: 90%">{{ line.replace('A:', '').strip() }}
+                                    </div>
+                                    {% elif 'B:' in line %}
+                                    <div class="msg b" style="max-width: 90%">{{ line.replace('B:', '').strip() }}
+                                    </div>
+                                    {% endif %}
+                                    {% endfor %}
+                                    {% if item.dialogue|length > 2 %}
+                                    <div class="text-center text-gray text-sm">+ {{ item.dialogue|length - 2 }}개 더보기
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% elif item.text %}
+                                <div class="script-container" style="max-height: 100px; overflow-y: auto;">
+                                    {{ item.text[:100] }}{% if item.text|length > 100 %}...{% endif %}
+                                </div>
+                                {% elif item.script %}
+                                <div class="script-container" style="max-height: 100px; overflow-y: auto;">
+                                    {{ item.script[:100] }}{% if item.script|length > 100 %}...{% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="content-card-footer">
+                                <div class="d-flex gap-2">
+                                    <a href="/restore/{{ item.id }}" class="btn btn-sm btn-success"
+                                        onclick="return confirm('이 콘텐츠를 복원하시겠습니까?');">
+                                        <i class="fas fa-undo"></i> 복원
+                                    </a>
+                                    <a href="/delete/{{ item.id }}" class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('이 콘텐츠를 영구적으로 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.');">
+                                        <i class="fas fa-trash-alt"></i> 영구 삭제
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="content-card">
+                            <div class="content-card-header">
+                                <h3 class="content-card-title">
+                                    <i class="fas fa-exclamation-triangle"></i> 유효하지 않은 데이터
+                                </h3>
+                            </div>
+                            <div class="content-card-body">
+                                <div class="alert alert-danger">
+                                    이 항목은 유효한 데이터가 아닙니다.
+                                </div>
+                            </div>
+                            <div class="content-card-footer">
+                                <a href="/delete/{{ loop.index0 }}" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash-alt"></i> 영구 삭제
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div style="text-align: center; padding: 3rem 1rem;">
+                        <i class="fas fa-trash-restore"
+                            style="font-size: 3rem; color: var(--gray-light); margin-bottom: 1rem;"></i>
+                        <h3>휴지통이 비어 있습니다</h3>
+                        <p>삭제된 콘텐츠가 없습니다.</p>
+                        <a href="/confirmed" class="btn btn-primary mt-4">
+                            <i class="fas fa-arrow-left"></i> 저장 목록으로 돌아가기
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 휴지통 비우기 모달 -->
+    <div class="modal-overlay" id="emptyTrashModal"
+        style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div class="modal-content"
+            style="background: white; border-radius: var(--radius-lg); width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-xl);">
+            <div class="modal-header"
+                style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--gray-light); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0;">휴지통 비우기</h3>
+                <button type="button" onclick="hideEmptyTrashModal()"
+                    style="background: none; border: none; font-size: 1.25rem; cursor: pointer;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>주의:</strong> 휴지통을 비우면 모든 항목이 영구적으로 삭제되며 복구할 수 없습니다.
+                </div>
+                <p>정말로 휴지통을 비우시겠습니까?</p>
+                <div class="form-group" style="margin-top: 1.5rem; text-align: right;">
+                    <button type="button" class="btn btn-secondary" onclick="hideEmptyTrashModal()">취소</button>
+                    <a href="/empty-trash" class="btn btn-danger">휴지통 비우기</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log("휴지통 페이지 로드됨");
+        });
+
+        // 모달 관련 함수
+        function showEmptyTrashModal() {
+            document.getElementById('emptyTrashModal').style.display = 'flex';
+        }
+
+        function hideEmptyTrashModal() {
+            document.getElementById('emptyTrashModal').style.display = 'none';
+        }
+
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                hideEmptyTrashModal();
+            }
+        });
+    </script>
+</body>
+
+</html>

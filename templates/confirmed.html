@@ -18,6 +18,9 @@
                     TOPIK 문제 생성기
                 </a>
                 <div class="header-actions">
+                    <a href="/trash" class="btn btn-ghost">
+                        <i class="fas fa-trash"></i> 휴지통
+                    </a>
                     <a href="/" class="btn btn-ghost">
                         <i class="fas fa-home"></i> 홈으로
                     </a>
@@ -34,12 +37,67 @@
                         <i class="fas fa-list-check"></i> 저장된 콘텐츠
                     </h2>
                     <div class="d-flex gap-2">
+                        <a href="/backup" class="btn btn-outline-primary" title="모든 콘텐츠를 JSON 파일로 다운로드">
+                            <i class="fas fa-download"></i> 백업
+                        </a>
+                        <button type="button" class="btn btn-outline-primary" onclick="showRestoreModal()"
+                            title="백업 파일에서 콘텐츠 복원">
+                            <i class="fas fa-upload"></i> 복원
+                        </button>
                         <a href="/" class="btn btn-primary">
                             <i class="fas fa-plus"></i> 새 콘텐츠 생성
                         </a>
                     </div>
                 </div>
+
+                <!-- 알림 메시지 있을 경우 표시 -->
+                {% if message %}
+                <div class="alert {% if '✅' in message %}alert-success{% else %}alert-danger{% endif %}">
+                    <i class="fas {% if '✅' in message %}fa-check-circle{% else %}fa-exclamation-circle{% endif %}"></i>
+                    {{ message }}
+                </div>
+                {% endif %}
+
                 <div class="card-body">
+                    <!-- 검색 및 필터 -->
+                    <div class="search-container"
+                        style="margin-bottom: 1.5rem; padding: 1rem; background-color: var(--light); border-radius: var(--radius); border: 1px solid var(--gray-light);">
+                        <form action="/confirmed" method="get" class="d-flex gap-2" style="flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <input type="text" name="search" class="form-control" placeholder="검색어 입력..."
+                                    value="{{ search or '' }}">
+                            </div>
+                            <div style="flex: 0 0 auto; min-width: 150px;">
+                                <select name="type_filter" class="form-control">
+                                    <option value="">모든 유형</option>
+                                    {% for type in types %}
+                                    <option value="{{ type }}" {% if type_filter==type %}selected{% endif %}>{{ type }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div style="flex: 0 0 auto; min-width: 150px;">
+                                <select name="level_filter" class="form-control">
+                                    <option value="">모든 난이도</option>
+                                    {% for level in levels %}
+                                    <option value="{{ level }}" {% if level_filter==level %}selected{% endif %}>{{ level
+                                        }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div style="flex: 0 0 auto;">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> 검색
+                                </button>
+                                {% if search or type_filter or level_filter %}
+                                <a href="/confirmed" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i> 초기화
+                                </a>
+                                {% endif %}
+                            </div>
+                        </form>
+                    </div>
+
                     {% if data and data|length > 0 %}
                     <div class="tabs">
                         <div class="tab active" data-tab="grid">
@@ -48,6 +106,24 @@
                         <div class="tab" data-tab="list">
                             <i class="fas fa-list"></i> 목록 보기
                         </div>
+                    </div>
+
+                    <!-- 검색 결과 통계 -->
+                    <div class="search-stats" style="margin-bottom: 1rem; font-size: 0.875rem; color: var(--gray);">
+                        {% if search or type_filter or level_filter %}
+                        <i class="fas fa-filter"></i> 검색 결과: <strong>{{ data|length }}</strong>개 항목
+                        {% if search %}
+                        | 검색어: <strong>{{ search }}</strong>
+                        {% endif %}
+                        {% if type_filter %}
+                        | 유형: <strong>{{ type_filter }}</strong>
+                        {% endif %}
+                        {% if level_filter %}
+                        | 난이도: <strong>{{ level_filter }}</strong>
+                        {% endif %}
+                        {% else %}
+                        총 <strong>{{ data|length }}</strong>개 항목
+                        {% endif %}
                     </div>
 
                     <!-- 그리드 보기 -->
@@ -79,6 +155,11 @@
                                         {% if item.place %}
                                         <span class="tag">
                                             <i class="fas fa-map-marker-alt"></i> {{ item.place }}
+                                        </span>
+                                        {% endif %}
+                                        {% if item.created_at %}
+                                        <span class="tag" title="생성일">
+                                            <i class="fas fa-calendar-alt"></i> {{ item.created_at.split('T')[0] }}
                                         </span>
                                         {% endif %}
                                     </div>
@@ -121,9 +202,15 @@
                                     {% endif %}
                                 </div>
                                 <div class="content-card-footer">
-                                    <a href="/content/{{ item.id }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-eye"></i> 상세보기
-                                    </a>
+                                    <div class="d-flex gap-2">
+                                        <a href="/content/{{ item.id }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i> 상세보기
+                                        </a>
+                                        <a href="/trash/{{ item.id }}" class="btn btn-sm btn-outline-danger"
+                                            onclick="return confirm('이 콘텐츠를 휴지통으로 이동하시겠습니까?');">
+                                            <i class="fas fa-trash"></i> 휴지통
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                             {% else %}
@@ -158,6 +245,7 @@
                                     <th style="text-align: left; padding: 0.75rem;">제목/주제</th>
                                     <th style="text-align: center; padding: 0.75rem;">난이도</th>
                                     <th style="text-align: center; padding: 0.75rem;">장소</th>
+                                    <th style="text-align: center; padding: 0.75rem;">생성일</th>
                                     <th style="text-align: right; padding: 0.75rem;">작업</th>
                                 </tr>
                             </thead>
@@ -195,16 +283,29 @@
                                         -
                                         {% endif %}
                                     </td>
+                                    <td style="text-align: center; padding: 0.75rem;">
+                                        {% if item.created_at %}
+                                        {{ item.created_at.split('T')[0] }}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
                                     <td style="text-align: right; padding: 0.75rem;">
-                                        <a href="/content/{{ item.id }}" class="btn btn-sm btn-ghost">
-                                            <i class="fas fa-eye"></i> 보기
-                                        </a>
+                                        <div class="d-flex gap-2 justify-between">
+                                            <a href="/content/{{ item.id }}" class="btn btn-sm btn-ghost">
+                                                <i class="fas fa-eye"></i> 보기
+                                            </a>
+                                            <a href="/trash/{{ item.id }}" class="btn btn-sm btn-ghost text-danger"
+                                                onclick="return confirm('이 콘텐츠를 휴지통으로 이동하시겠습니까?');">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% else %}
                                 <tr
                                     style="border-bottom: 1px solid var(--gray-light); background-color: var(--danger-light);">
-                                    <td colspan="5" style="padding: 0.75rem; text-align: center;">
+                                    <td colspan="6" style="padding: 0.75rem; text-align: center;">
                                         <i class="fas fa-exclamation-triangle"></i> 유효하지 않은 데이터
                                     </td>
                                 </tr>
@@ -217,17 +318,62 @@
                     <div style="text-align: center; padding: 3rem 1rem;">
                         <i class="fas fa-inbox"
                             style="font-size: 3rem; color: var(--gray-light); margin-bottom: 1rem;"></i>
+                        {% if search or type_filter or level_filter %}
+                        <h3>검색 결과가 없습니다</h3>
+                        <p>검색 조건을 변경하거나 새로운 콘텐츠를 생성해보세요.</p>
+                        <a href="/confirmed" class="btn btn-primary mt-4">
+                            <i class="fas fa-times"></i> 검색 초기화
+                        </a>
+                        {% else %}
                         <h3>저장된 콘텐츠가 없습니다</h3>
                         <p>새로운 콘텐츠를 생성하고 저장해보세요.</p>
                         <a href="/" class="btn btn-primary mt-4">
                             <i class="fas fa-plus"></i> 새 콘텐츠 생성하기
                         </a>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
             </div>
         </div>
     </main>
+
+    <!-- 백업 복원 모달 -->
+    <div class="modal-overlay" id="restoreModal"
+        style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+        <div class="modal-content"
+            style="background: white; border-radius: var(--radius-lg); width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-xl);">
+            <div class="modal-header"
+                style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--gray-light); display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0;">백업 파일에서 복원</h3>
+                <button type="button" onclick="hideRestoreModal()"
+                    style="background: none; border: none; font-size: 1.25rem; cursor: pointer;">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form action="/restore" method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="backup_file" class="form-label">백업 파일 선택 (.json)</label>
+                        <input type="file" id="backup_file" name="backup_file" class="form-control" accept=".json"
+                            required>
+                        <div class="form-hint">
+                            백업 파일에서 복원하면 기존 데이터가 백업 파일의 데이터로 대체됩니다.
+                            기존 데이터는 자동으로 백업됩니다.
+                        </div>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>주의:</strong> 백업 파일에서 복원하면 현재 저장된 모든 콘텐츠가 백업 파일의 콘텐츠로 대체됩니다.
+                    </div>
+                    <div class="form-group" style="margin-top: 1.5rem; text-align: right;">
+                        <button type="button" class="btn btn-secondary" onclick="hideRestoreModal()">취소</button>
+                        <button type="submit" class="btn btn-primary">복원하기</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
@@ -254,6 +400,22 @@
                     document.getElementById(tabId + '-tab').classList.remove('hidden');
                 });
             });
+        });
+
+        // 모달 관련 함수
+        function showRestoreModal() {
+            document.getElementById('restoreModal').style.display = 'flex';
+        }
+
+        function hideRestoreModal() {
+            document.getElementById('restoreModal').style.display = 'none';
+        }
+
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                hideRestoreModal();
+            }
         });
     </script>
 </body>

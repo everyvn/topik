@@ -124,50 +124,73 @@ document.addEventListener('DOMContentLoaded', function () {
             e.preventDefault(); // 일단 기본 제출 동작 방지
 
             try {
+                // 콘텐츠 필드 확인
+                const contentField = document.getElementById('content-field');
+                if (!contentField) {
+                    alert('콘텐츠 필드를 찾을 수 없습니다.');
+                    return;
+                }
+
                 // 현재 활성화된 탭 확인
                 const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
 
+                // JSON 데이터 준비
+                let jsonData = {};
+
                 if (activeTab === 'json') {
                     // JSON 탭에서 제출 시 JSON 유효성 검사
+                    if (!jsonEditor) {
+                        alert('JSON 에디터를 찾을 수 없습니다.');
+                        return;
+                    }
+
                     const jsonText = jsonEditor.value.trim();
                     if (!jsonText) {
-                        showValidationError("JSON 데이터가 비어 있습니다.");
+                        alert("JSON 데이터가 비어 있습니다.");
                         return;
                     }
 
                     try {
-                        const updatedJson = JSON.parse(jsonText);
-                        console.log("JSON 파싱 성공:", typeof updatedJson);
-                        contentField.value = JSON.stringify(updatedJson);
-
-                        // 정상 제출
-                        confirmForm.submit();
+                        jsonData = JSON.parse(jsonText);
+                        console.log("JSON 파싱 성공:", typeof jsonData);
                     } catch (error) {
-                        showValidationError('유효하지 않은 JSON 형식입니다: ' + error.message);
+                        alert('유효하지 않은 JSON 형식입니다: ' + error.message);
+                        return;
                     }
                 }
                 else if (activeTab === 'edit') {
                     // 인라인 편집 탭에서 제출 시 필드에서 JSON 업데이트
                     updateJsonFromFields();
 
-                    if (parsedContent) {
-                        contentField.value = JSON.stringify(parsedContent);
-                        console.log("저장할 JSON:", contentField.value);
-
-                        // 정상 제출
-                        confirmForm.submit();
-                    } else {
-                        showValidationError('인라인 편집 내용을 JSON으로 변환할 수 없습니다.');
+                    if (!parsedContent) {
+                        alert('인라인 편집 내용을 JSON으로 변환할 수 없습니다.');
+                        return;
                     }
+                    jsonData = parsedContent;
                 }
                 else {
-                    // 미리보기 탭에서는 원본 값 사용
-                    // 내용이 변경되지 않았으므로 바로 제출
-                    confirmForm.submit();
+                    // 미리보기 탭에서는 현재 hidden 필드 값 사용
+                    try {
+                        if (!contentField.value || contentField.value.trim() === '') {
+                            alert('콘텐츠 데이터가 비어 있습니다.');
+                            return;
+                        }
+                        jsonData = JSON.parse(contentField.value);
+                    } catch (error) {
+                        alert('콘텐츠 필드에 유효하지 않은 JSON이 있습니다: ' + error.message);
+                        return;
+                    }
                 }
+
+                // 유효성 검사 성공 - 콘텐츠 필드에 JSON 설정
+                contentField.value = JSON.stringify(jsonData);
+                console.log("저장할 JSON:", typeof jsonData);
+
+                // 정상 제출
+                confirmForm.submit();
             } catch (error) {
                 console.error("폼 제출 처리 중 오류:", error);
-                showValidationError('폼 제출 처리 중 오류가 발생했습니다: ' + error.message);
+                alert('폼 제출 처리 중 오류가 발생했습니다: ' + error.message);
             }
         });
     }
@@ -176,31 +199,78 @@ document.addEventListener('DOMContentLoaded', function () {
     const regenerateForm = document.getElementById('regenerate-form');
     if (regenerateForm) {
         regenerateForm.addEventListener('submit', function (e) {
-            // 현재 JSON 데이터 업데이트
-            const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
+            e.preventDefault(); // 기본 제출 동작 방지
 
-            if (activeTab === 'json' && jsonEditor) {
-                // JSON 탭에서 재생성 요청 시 JSON 유효성 검사
-                try {
-                    const jsonText = jsonEditor.value.trim();
-                    const updatedJson = JSON.parse(jsonText);
-                    regenerateContentField.value = JSON.stringify(updatedJson);
-                } catch (error) {
-                    e.preventDefault();
-                    alert('유효하지 않은 JSON 형식입니다. 먼저 JSON을 수정해주세요.');
+            try {
+                // 사용자 코멘트 필드 검증
+                const userComment = document.getElementById('user_comment');
+                if (!userComment || !userComment.value || userComment.value.trim() === '') {
+                    alert('추가 요구사항을 입력해주세요.');
+                    return;
                 }
-            }
-            else if (activeTab === 'edit' && parsedContent) {
-                // 인라인 편집 탭에서 재생성 요청 시 필드에서 JSON 업데이트
-                updateJsonFromFields();
-                regenerateContentField.value = JSON.stringify(parsedContent);
-            }
 
-            // 사용자 코멘트 필드 검증
-            const userComment = document.getElementById('user_comment');
-            if (userComment && (!userComment.value || userComment.value.trim() === '')) {
-                e.preventDefault();
-                alert('추가 요구사항을 입력해주세요.');
+                // 재생성 필드
+                const regenerateContentField = document.getElementById('regenerate-content-field');
+                if (!regenerateContentField) {
+                    alert('콘텐츠 필드를 찾을 수 없습니다.');
+                    return;
+                }
+
+                // 현재 활성 탭 확인
+                const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
+
+                // JSON 데이터 준비
+                let jsonData = {};
+
+                if (activeTab === 'json' && jsonEditor) {
+                    // JSON 에디터에서 직접 값을 가져옴
+                    const jsonText = jsonEditor.value.trim();
+                    if (!jsonText) {
+                        alert('JSON 데이터가 비어 있습니다.');
+                        return;
+                    }
+
+                    // JSON 파싱 시도
+                    try {
+                        jsonData = JSON.parse(jsonText);
+                    } catch (error) {
+                        alert('유효하지 않은 JSON 형식입니다: ' + error.message);
+                        return;
+                    }
+                }
+                else if (activeTab === 'edit' && parsedContent) {
+                    // 편집 필드에서 JSON 업데이트
+                    updateJsonFromFields();
+                    jsonData = parsedContent;
+                }
+                else {
+                    // 미리보기 탭 - hidden 필드에서 JSON 가져오기
+                    const contentField = document.getElementById('content-field');
+                    if (!contentField || !contentField.value.trim()) {
+                        alert('유효한 콘텐츠 데이터가 없습니다.');
+                        return;
+                    }
+
+                    try {
+                        jsonData = JSON.parse(contentField.value);
+                    } catch (error) {
+                        alert('콘텐츠 필드에 유효하지 않은 JSON이 있습니다: ' + error.message);
+                        return;
+                    }
+                }
+
+                // 재생성 필드에 JSON 데이터 설정 (문자열화)
+                regenerateContentField.value = JSON.stringify(jsonData);
+
+                // 로그 기록
+                console.log('재생성 요청 데이터:', jsonData);
+
+                // 폼 제출
+                regenerateForm.submit();
+
+            } catch (error) {
+                console.error('재생성 폼 처리 중 오류:', error);
+                alert('재생성 요청 처리 중 오류가 발생했습니다: ' + error.message);
             }
         });
     }

@@ -3,6 +3,7 @@ FastAPI 애플리케이션 및 라우팅
 """
 
 import json
+import re
 from fastapi import FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -60,16 +61,54 @@ def regenerate_content(request: Request, content: str = Form(...), user_comment:
         logger.info(f"콘텐츠 재생성 요청: 코멘트 길이 {len(user_comment)}")
         logger.info(f"재생성 콘텐츠 데이터 타입: {type(content)}")
         
-        # 문자열에서 JSON 파싱
-        if isinstance(content, str):
-            # 따옴표로 이스케이프된 경우 처리
-            if content.startswith('"') and content.endswith('"'):
-                content = content[1:-1].replace('\\"', '"')
+        # 입력 데이터 유효성 검사
+        if not content or content.isspace():
+            raise ValueError("콘텐츠 데이터가 비어있습니다.")
+        
+        # 콘텐츠 처리: 문자열 → 딕셔너리 변환
+        try:
+            # 1. 직접 파싱 시도
+            try:
+                content_data = json.loads(content)
+                logger.info("첫 번째 JSON 파싱 시도 성공: %s", type(content_data))
                 
-            content_data = json.loads(content)
+                # 만약 여전히 문자열이라면 다시 파싱 시도 (이중 문자열화된 경우)
+                if isinstance(content_data, str):
+                    logger.warning("파싱 결과가 문자열입니다. 다시 파싱 시도합니다.")
+                    content_data = json.loads(content_data)
+                    logger.info("두 번째 JSON 파싱 시도 성공: %s", type(content_data))
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON 파싱 오류: {str(e)}")
+                
+                # 2. 이스케이프된 문자열이라면 처리 시도
+                if content.startswith('"') and content.endswith('"'):
+                    try:
+                        unescaped = content[1:-1].replace('\\"', '"')
+                        content_data = json.loads(unescaped)
+                        logger.info("이스케이프 처리 후 JSON 파싱 성공: %s", type(content_data))
+                    except json.JSONDecodeError as e2:
+                        logger.error(f"이스케이프 처리 후에도 JSON 파싱 오류: {str(e2)}")
+                        raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e2)}")
+                else:
+                    raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
             
+            # 3. 결과 유효성 검사
             if not isinstance(content_data, dict):
-                raise ValueError(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(content_data)}")
+                logger.error(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(content_data)}")
+                
+                # 3-1. 문자열인 경우 마지막으로 한 번 더 파싱 시도
+                if isinstance(content_data, str):
+                    try:
+                        content_data = json.loads(content_data)
+                        logger.info("마지막 JSON 파싱 시도 성공: %s", type(content_data))
+                        
+                        if not isinstance(content_data, dict):
+                            raise ValueError(f"최종 파싱 결과가 딕셔너리가 아닙니다: {type(content_data)}")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"마지막 JSON 파싱 시도 실패: {str(e)}")
+                        raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
+                else:
+                    raise ValueError(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(content_data)}")
             
             # 재생성 요청
             regenerated_data = content_generator.regenerate(content_data, user_comment)
@@ -84,23 +123,54 @@ def regenerate_content(request: Request, content: str = Form(...), user_comment:
                 "parsed": regenerated_data,
                 "user_comment": user_comment
             })
-        else:
-            raise ValueError(f"콘텐츠 데이터가 문자열이 아닙니다: {type(content)}")
             
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON 파싱 오류 (재생성): {str(e)}, 받은 데이터: {content[:150]}...")
-        return templates.TemplateResponse("generator.html", {
-            "request": request,
-            "message": f"❌ 재생성 실패: 유효하지 않은 JSON 형식입니다 - {str(e)}",
-            "content": content,
-            "user_comment": user_comment
-        })
+        except ValueError as ve:
+            logger.error(f"콘텐츠 처리 중 오류: {str(ve)}")
+            
+            error_response = {
+                "error": f"콘텐츠 처리 중 오류: {str(ve)}",
+                "user_comment": user_comment,
+                "original_content": content[:200] + ("..." if len(content) > 200 else "")  # 디버깅용 원본 콘텐츠 일부 포함
+            }
+            
+            return templates.TemplateResponse("generator.html", {
+                "request": request,
+                "message": f"❌ 재생성 실패: {str(ve)}",
+                "content": json.dumps(error_response),
+                "parsed": error_response,
+                "user_comment": user_comment
+            })
+            
+        except Exception as e:
+            logger.error(f"콘텐츠 처리 중 오류: {str(e)}")
+            
+            error_response = {
+                "error": f"콘텐츠 처리 중 오류: {str(e)}",
+                "user_comment": user_comment,
+                "original_content": content[:200] + ("..." if len(content) > 200 else "")  # 디버깅용 원본 콘텐츠 일부 포함
+            }
+            
+            return templates.TemplateResponse("generator.html", {
+                "request": request,
+                "message": f"❌ 재생성 실패: {str(e)}",
+                "content": json.dumps(error_response),
+                "parsed": error_response,
+                "user_comment": user_comment
+            })
+            
     except Exception as e:
         logger.error(f"콘텐츠 재생성 중 오류: {str(e)}")
+        
+        error_response = {
+            "error": f"콘텐츠 재생성 중 오류가 발생했습니다: {str(e)}",
+            "user_comment": user_comment
+        }
+        
         return templates.TemplateResponse("generator.html", {
             "request": request,
             "message": f"❌ 재생성 실패: {str(e)}",
-            "content": content,
+            "content": json.dumps(error_response),
+            "parsed": error_response,
             "user_comment": user_comment
         })
 
@@ -114,55 +184,101 @@ def confirm_content(request: Request, content: str = Form(...)):
     try:
         if not content or content.isspace():
             raise ValueError("빈 콘텐츠가 전송되었습니다.")
-            
-        # 문자열에서 JSON 파싱
-        # content가 따옴표로 이스케이프된 경우 처리
-        if content.startswith('"') and content.endswith('"'):
-            content = content[1:-1].replace('\\"', '"')
-            
-        parsed = json.loads(content)
         
-        if not isinstance(parsed, dict):
-            raise ValueError(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(parsed)}")
-        
-        # 저장
-        content_id = content_storage.save_content(parsed)
-        logger.info(f"콘텐츠 저장 완료: {content_id}")
-        
-        return templates.TemplateResponse("generator.html", {
-            "request": request,
-            "message": "✅ 저장 완료! 콘텐츠가 성공적으로 저장되었습니다.",
-            "content": None
-        })
-    
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON 파싱 오류: {str(e)}, 받은 데이터: {content[:150]}...")
-        
-        # 비상 처리 시도
+        # 콘텐츠 처리: 문자열 → 딕셔너리 변환
         try:
-            # content가 문자열이더라도 직접 파싱 시도
-            if isinstance(content, str):
-                parsed_data = json.loads(content)
-                logger.info(f"비상 처리 - 파싱 성공, 데이터 타입: {type(parsed_data)}")
+            # 1. 직접 파싱 시도
+            try:
+                parsed = json.loads(content)
+                logger.info("첫 번째 JSON 파싱 시도 성공: %s", type(parsed))
                 
-                # 정상적으로 파싱되면 여기서 저장 시도
-                if isinstance(parsed_data, dict):
-                    content_id = content_storage.save_content(parsed_data)
-                    logger.info(f"비상 처리로 콘텐츠 저장 완료: {content_id}")
-                    
-                    return templates.TemplateResponse("generator.html", {
-                        "request": request,
-                        "message": "✅ 비상 처리를 통해 저장에 성공했습니다.",
-                        "content": None
-                    })
-        except Exception as inner_e:
-            logger.error(f"비상 처리 중 추가 오류: {str(inner_e)}")
-        
-        return templates.TemplateResponse("generator.html", {
-            "request": request,
-            "message": f"❌ 저장 실패: 유효하지 않은 JSON 형식입니다 - {str(e)}",
-            "content": content
-        })
+                # 만약 여전히 문자열이라면 다시 파싱 시도 (이중 문자열화된 경우)
+                if isinstance(parsed, str):
+                    logger.warning("파싱 결과가 문자열입니다. 다시 파싱 시도합니다.")
+                    parsed = json.loads(parsed)
+                    logger.info("두 번째 JSON 파싱 시도 성공: %s", type(parsed))
+            except json.JSONDecodeError as e:
+                logger.error(f"JSON 파싱 오류: {str(e)}")
+                
+                # 2. 이스케이프된 문자열이라면 처리 시도
+                if content.startswith('"') and content.endswith('"'):
+                    try:
+                        unescaped = content[1:-1].replace('\\"', '"')
+                        parsed = json.loads(unescaped)
+                        logger.info("이스케이프 처리 후 JSON 파싱 성공: %s", type(parsed))
+                    except json.JSONDecodeError as e2:
+                        logger.error(f"이스케이프 처리 후에도 JSON 파싱 오류: {str(e2)}")
+                        
+                        # 3. 콤마 오류 수정 시도 (Expecting ',' delimiter)
+                        if "delimiter" in str(e2) and "," in str(e2) and hasattr(e2, 'pos'):
+                            try:
+                                pos = e2.pos
+                                fixed_content = unescaped[:pos] + "," + unescaped[pos:]
+                                parsed = json.loads(fixed_content)
+                                logger.info("콤마 추가 후 JSON 파싱 성공: %s", type(parsed))
+                            except json.JSONDecodeError as e3:
+                                logger.error(f"콤마 추가 후에도 JSON 파싱 오류: {str(e3)}")
+                                raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e2)}")
+                        else:
+                            raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e2)}")
+                else:
+                    # 4. 콤마 오류 수정 시도
+                    if "delimiter" in str(e) and "," in str(e) and hasattr(e, 'pos'):
+                        try:
+                            pos = e.pos
+                            fixed_content = content[:pos] + "," + content[pos:]
+                            parsed = json.loads(fixed_content)
+                            logger.info("콤마 추가 후 JSON 파싱 성공: %s", type(parsed))
+                        except json.JSONDecodeError as e2:
+                            logger.error(f"콤마 추가 후에도 JSON 파싱 오류: {str(e2)}")
+                            raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
+                    else:
+                        raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
+            
+            # 5. 결과 유효성 검사
+            if not isinstance(parsed, dict):
+                logger.error(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(parsed)}")
+                
+                # 5-1. 문자열인 경우 마지막으로 한 번 더 파싱 시도
+                if isinstance(parsed, str):
+                    try:
+                        parsed = json.loads(parsed)
+                        logger.info("마지막 JSON 파싱 시도 성공: %s", type(parsed))
+                        
+                        if not isinstance(parsed, dict):
+                            raise ValueError(f"최종 파싱 결과가 딕셔너리가 아닙니다: {type(parsed)}")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"마지막 JSON 파싱 시도 실패: {str(e)}")
+                        raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
+                else:
+                    raise ValueError(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(parsed)}")
+            
+            # 저장
+            content_id = content_storage.save_content(parsed)
+            logger.info(f"콘텐츠 저장 완료: {content_id}")
+            
+            return templates.TemplateResponse("generator.html", {
+                "request": request,
+                "message": "✅ 저장 완료! 콘텐츠가 성공적으로 저장되었습니다.",
+                "content": None
+            })
+            
+        except ValueError as ve:
+            logger.error(f"콘텐츠 처리 중 오류: {str(ve)}")
+            return templates.TemplateResponse("generator.html", {
+                "request": request,
+                "message": f"❌ 저장 실패: {str(ve)}",
+                "content": content
+            })
+            
+        except Exception as e:
+            logger.error(f"콘텐츠 처리 중 예외 발생: {str(e)}")
+            return templates.TemplateResponse("generator.html", {
+                "request": request,
+                "message": f"❌ 저장 실패: {str(e)}",
+                "content": content
+            })
+    
     except Exception as e:
         logger.error(f"콘텐츠 저장 중 오류: {str(e)}")
         

@@ -4,6 +4,7 @@
 
 import json
 from typing import Dict, Any, Optional
+import re
 
 from openai import OpenAI
 from app.config import OPENAI_API_KEY, GPT_MODEL
@@ -108,6 +109,39 @@ class ContentGenerator:
             return content_data
             
         try:
+            # 기존 콘텐츠가 문자열인 경우 처리
+            if isinstance(content_data, str):
+                logger.info(f"문자열 형태의 콘텐츠를 딕셔너리로 변환 시도: 길이 {len(content_data)}")
+                
+                # 따옴표로 이스케이프된 경우 처리
+                if content_data.startswith('"') and content_data.endswith('"'):
+                    content_data = content_data[1:-1].replace('\\"', '"')
+                    
+                try:
+                    content_data = json.loads(content_data)
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON 파싱 오류: {str(e)}")
+                    # 오류 컨텍스트 추출
+                    if hasattr(e, 'pos') and e.pos is not None and e.pos < len(content_data):
+                        context_start = max(0, e.pos - 30)
+                        context_end = min(len(content_data), e.pos + 30)
+                        error_context = content_data[context_start:context_end]
+                        logger.error(f"오류 주변 컨텍스트: ...{error_context}...")
+                    
+                    # 깨진 JSON 복구 시도
+                    logger.info("JSON 오류 복구 시도")
+                    # 따옴표 불일치 수정
+                    fixed_content = re.sub(r"'([^']*)':", r'"\1":', content_data)
+                    # 마지막 항목 쉼표 제거
+                    fixed_content = re.sub(r',\s*}', '}', fixed_content)
+                    fixed_content = re.sub(r',\s*]', ']', fixed_content)
+                    
+                    try:
+                        content_data = json.loads(fixed_content)
+                        logger.info("JSON 오류 복구 성공")
+                    except json.JSONDecodeError:
+                        raise ValueError(f"유효한 JSON으로 파싱할 수 없습니다: {str(e)}")
+            
             # 기존 콘텐츠 정보 추출
             content_type = content_data.get("type", "")
             level = content_data.get("level", "")
@@ -115,7 +149,20 @@ class ContentGenerator:
             logger.info(f"콘텐츠 재생성 시작: {content_type} / {level}")
             
             # 원본 콘텐츠를 JSON 문자열로 변환
-            original_content_str = json.dumps(content_data, ensure_ascii=False)
+            try:
+                original_content_str = json.dumps(content_data, ensure_ascii=False)
+            except TypeError as e:
+                logger.error(f"JSON 직렬화 오류: {str(e)}")
+                # 직렬화할 수 없는 값 필터링
+                filtered_content = {}
+                for k, v in content_data.items():
+                    try:
+                        json.dumps({k: v})
+                        filtered_content[k] = v
+                    except (TypeError, OverflowError):
+                        filtered_content[k] = str(v)
+                original_content_str = json.dumps(filtered_content, ensure_ascii=False)
+                content_data = filtered_content  # 필터링된 콘텐츠로 업데이트
             
             # 원본 프롬프트 가져오기 (없으면 템플릿에서 재생성)
             original_prompt = content_data.get("original_prompt", "")
@@ -133,13 +180,14 @@ class ContentGenerator:
 {user_comment}
 
 응답은 반드시 원본과 동일한 JSON 형식으로 제공해 주세요.
+마크다운이나 설명 없이 순수한 JSON 객체만 반환해주세요.
 """
             
             # GPT 호출
             response = self.client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[
-                    {"role": "system", "content": "당신은 한국어 교육용 콘텐츠를 생성하는 AI입니다."},
+                    {"role": "system", "content": "당신은 한국어 교육용 콘텐츠를 생성하는 AI입니다. 응답은 항상 순수한 JSON 형식으로만 반환합니다."},
                     {"role": "user", "content": f"원본 요청: {original_prompt}"},
                     {"role": "user", "content": regenerate_prompt}
                 ],
@@ -148,41 +196,51 @@ class ContentGenerator:
             
             result = response.choices[0].message.content.strip()
             
-            
             # 결과 파싱 및 반환
             try:
-                # JSON 문자열 전처리 - 잘못된 이스케이프 문자 처리
-                cleaned_result = result
+                # JSON 문자열 전처리 - 마크다운 코드 블록 제거
+                code_block_pattern = r'```(?:json)?\s*([\s\S]*?)\s*```'
+                code_block_match = re.search(code_block_pattern, result)
                 
-                # 따옴표 안에 이스케이프되지 않은 따옴표가 있는 경우 수정 시도
+                if code_block_match:
+                    # 마크다운 코드 블록에서 JSON 추출
+                    cleaned_result = code_block_match.group(1).strip()
+                    logger.info("마크다운 코드 블록에서 JSON 추출 성공")
+                else:
+                    # JSON 객체만 추출 시도
+                    json_pattern = r'(\{[\s\S]*\})'
+                    json_match = re.search(json_pattern, result)
+                    
+                    if json_match:
+                        cleaned_result = json_match.group(1).strip()
+                        logger.info("JSON 객체 패턴으로 추출 성공")
+                    else:
+                        # 원본 응답 사용
+                        cleaned_result = result
+                        logger.info("원본 응답 사용 (패턴 매칭 실패)")
+                
+                # JSON 파싱 시도
                 try:
                     new_content_data = json.loads(cleaned_result)
                 except json.JSONDecodeError as e:
-                    logger.warning(f"첫 번째 JSON 파싱 시도 실패: {str(e)}")
+                    logger.error(f"JSON 파싱 실패: {str(e)}")
                     
-                    # 응답에서 JSON 부분만 추출 시도 (마크다운 코드 블록 등에서)
-                    import re
-                    json_pattern = r'```json\s*([\s\S]*?)\s*```|```\s*([\s\S]*?)\s*```|(\{[\s\S]*\})'
-                    json_matches = re.findall(json_pattern, cleaned_result)
+                    # JSON 오류 수정 시도
+                    fixed_result = cleaned_result
+                    # 작은따옴표를 큰따옴표로 변환
+                    fixed_result = re.sub(r"'([^']*)':", r'"\1":', fixed_result)
+                    # 마지막 항목 쉼표 제거
+                    fixed_result = re.sub(r',\s*}', '}', fixed_result)
+                    fixed_result = re.sub(r',\s*]', ']', fixed_result)
                     
-                    if json_matches:
-                        for match in json_matches:
-                            # 매치된 그룹 중 비어있지 않은 것 선택
-                            json_str = next((m for m in match if m), None)
-                            if json_str:
-                                try:
-                                    new_content_data = json.loads(json_str)
-                                    logger.info("JSON 블록에서 유효한 JSON 추출 성공")
-                                    break
-                                except json.JSONDecodeError:
-                                    continue
-                    
-                    # 여전히 파싱 실패 시 원본 콘텐츠 반환
-                    if 'new_content_data' not in locals():
-                        logger.error(f"재생성된 콘텐츠를 JSON으로 파싱할 수 없습니다: {cleaned_result}")
-                        # 오류 시 원본 콘텐츠에 오류 정보 추가
+                    try:
+                        new_content_data = json.loads(fixed_result)
+                        logger.info("JSON 오류 수정 후 파싱 성공")
+                    except json.JSONDecodeError as second_e:
+                        # 여전히 실패한 경우 원본 콘텐츠 반환
+                        logger.error(f"JSON 수정 후에도 파싱 실패: {str(second_e)}")
                         content_data["error"] = f"GPT 응답이 JSON 형식이 아닙니다: {str(e)}"
-                        content_data["raw_regenerated"] = cleaned_result
+                        content_data["raw_regenerated"] = result
                         content_data["user_comment"] = user_comment
                         return content_data
                 
