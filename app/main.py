@@ -1,342 +1,458 @@
 """
 FastAPI 애플리케이션 및 라우팅
+
+TOPIK 문제 생성기의 웹 인터페이스와 API 엔드포인트를 정의합니다.
 """
 
 import json
 import re
-from fastapi import FastAPI, Form, Request, HTTPException
+import functools
+from fastapi import FastAPI, Form, Request, HTTPException, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from typing import Optional
+from typing import Dict, Any, Optional, List, Callable
 
-from app.services import ContentGenerator, ContentStorage
+from app.config import AppConfig
+from app.services import create_content_generator, create_content_storage
 from app.utils.logger import logger
+from app.utils.json_debug import safely_parse_json
+
+
+# 서비스 인스턴스를 생성하는 의존성 함수
+def get_content_generator():
+    """ContentGenerator 인스턴스를 제공하는 의존성 함수"""
+    return create_content_generator()
+
+def get_content_storage():
+    """ContentStorage 인스턴스를 제공하는 의존성 함수"""
+    return create_content_storage()
+
+
+# 라우트 오류 처리 데코레이터
+def handle_route_errors(func):
+    """라우트 함수의 오류를 처리하는 데코레이터"""
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except ValueError as e:
+            logger.error(f"값 오류: {str(e)}")
+            request = next((arg for arg in args if isinstance(arg, Request)), None)
+            return templates.TemplateResponse(
+                "generator.html", 
+                {
+                    "request": request,
+                    "message": f"❌ 처리 실패: {str(e)}",
+                    "content": None
+                },
+                status_code=400
+            )
+        except Exception as e:
+            logger.error(f"처리 중 예외 발생: {str(e)}")
+            request = next((arg for arg in args if isinstance(arg, Request)), None)
+            return templates.TemplateResponse(
+                "generator.html", 
+                {
+                    "request": request,
+                    "message": f"❌ 서버 오류: {str(e)}",
+                    "content": None
+                },
+                status_code=500
+            )
+    return wrapper
 
 
 # FastAPI 애플리케이션 설정
-app = FastAPI(title="TOPIK 문제 생성기")
+app = FastAPI(
+    title="TOPIK 문제 생성기",
+    description="한국어 능력 시험(TOPIK) 문제를 자동으로 생성하는 애플리케이션",
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
+
+# 정적 파일 및 템플릿 설정
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# 서비스 초기화
-content_generator = ContentGenerator()
-content_storage = ContentStorage()
-
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request):
+async def index(request: Request):
     """메인 페이지를 표시합니다."""
     return templates.TemplateResponse("generator.html", {"request": request, "content": None})
 
 
 @app.post("/generate", response_class=HTMLResponse)
-def generate_content(request: Request, qtype: str = Form(...), level: str = Form(...)):
-    """선택한 유형과 레벨에 따라 콘텐츠를 생성합니다."""
-    try:
-        content_data = content_generator.generate(qtype, level)
-        
-        # JSON 문자열로 변환
-        raw_content = json.dumps(content_data, ensure_ascii=False)
-        logger.info(f"콘텐츠 생성 완료: {qtype} / {level}")
-        
-        return templates.TemplateResponse("generator.html", {
+@handle_route_errors
+async def generate_content(
+    request: Request, 
+    qtype: str = Form(...), 
+    level: str = Form(...),
+    generator = Depends(get_content_generator)
+):
+    """
+    선택한 유형과 레벨에 따라 콘텐츠를 생성합니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        qtype: 콘텐츠 유형 (dialogue, lecture 등)
+        level: 학습자 레벨 (초급, 중급, 고급 등)
+        generator: ContentGenerator 인스턴스 (의존성 주입)
+    """
+    logger.info(f"콘텐츠 생성 요청: {qtype} / {level}")
+    
+    # 콘텐츠 생성
+    content_data = generator.generate(qtype, level)
+    
+    # JSON 문자열로 변환
+    raw_content = json.dumps(content_data, ensure_ascii=False)
+    logger.info(f"콘텐츠 생성 완료: {qtype} / {level}")
+    
+    return templates.TemplateResponse(
+        "generator.html", 
+        {
             "request": request,
             "content": raw_content,
             "parsed": content_data
-        })
-    except Exception as e:
-        logger.error(f"콘텐츠 생성 라우트 처리 중 오류: {str(e)}")
-        return templates.TemplateResponse("generator.html", {
-            "request": request,
-            "message": f"❌ 콘텐츠 생성 중 오류가 발생했습니다: {str(e)}",
-            "content": None
-        })
+        }
+    )
 
 
 @app.post("/regenerate", response_class=HTMLResponse)
-def regenerate_content(request: Request, content: str = Form(...), user_comment: str = Form(...)):
-    """사용자 코멘트를 반영하여 콘텐츠를 재생성합니다."""
-    try:
-        logger.info(f"콘텐츠 재생성 요청: 코멘트 길이 {len(user_comment)}")
-        logger.info(f"재생성 콘텐츠 데이터 타입: {type(content)}")
-        
-        # 입력 데이터 유효성 검사
-        if not content or content.isspace():
-            raise ValueError("콘텐츠 데이터가 비어있습니다.")
-        
-        # 콘텐츠 처리: 문자열 → 딕셔너리 변환
-        try:
-            # 1. 직접 파싱 시도
-            try:
-                content_data = json.loads(content)
-                logger.info("첫 번째 JSON 파싱 시도 성공: %s", type(content_data))
-                
-                # 만약 여전히 문자열이라면 다시 파싱 시도 (이중 문자열화된 경우)
-                if isinstance(content_data, str):
-                    logger.warning("파싱 결과가 문자열입니다. 다시 파싱 시도합니다.")
-                    content_data = json.loads(content_data)
-                    logger.info("두 번째 JSON 파싱 시도 성공: %s", type(content_data))
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON 파싱 오류: {str(e)}")
-                
-                # 2. 이스케이프된 문자열이라면 처리 시도
-                if content.startswith('"') and content.endswith('"'):
-                    try:
-                        unescaped = content[1:-1].replace('\\"', '"')
-                        content_data = json.loads(unescaped)
-                        logger.info("이스케이프 처리 후 JSON 파싱 성공: %s", type(content_data))
-                    except json.JSONDecodeError as e2:
-                        logger.error(f"이스케이프 처리 후에도 JSON 파싱 오류: {str(e2)}")
-                        raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e2)}")
-                else:
-                    raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
-            
-            # 3. 결과 유효성 검사
-            if not isinstance(content_data, dict):
-                logger.error(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(content_data)}")
-                
-                # 3-1. 문자열인 경우 마지막으로 한 번 더 파싱 시도
-                if isinstance(content_data, str):
-                    try:
-                        content_data = json.loads(content_data)
-                        logger.info("마지막 JSON 파싱 시도 성공: %s", type(content_data))
-                        
-                        if not isinstance(content_data, dict):
-                            raise ValueError(f"최종 파싱 결과가 딕셔너리가 아닙니다: {type(content_data)}")
-                    except json.JSONDecodeError as e:
-                        logger.error(f"마지막 JSON 파싱 시도 실패: {str(e)}")
-                        raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
-                else:
-                    raise ValueError(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(content_data)}")
-            
-            # 재생성 요청
-            regenerated_data = content_generator.regenerate(content_data, user_comment)
-            
-            # JSON 문자열로 변환
-            raw_regenerated = json.dumps(regenerated_data, ensure_ascii=False)
-            logger.info(f"콘텐츠 재생성 완료: {regenerated_data.get('type')} / {regenerated_data.get('level')}")
-            
-            return templates.TemplateResponse("generator.html", {
-                "request": request,
-                "content": raw_regenerated,
-                "parsed": regenerated_data,
-                "user_comment": user_comment
-            })
-            
-        except ValueError as ve:
-            logger.error(f"콘텐츠 처리 중 오류: {str(ve)}")
-            
-            error_response = {
-                "error": f"콘텐츠 처리 중 오류: {str(ve)}",
-                "user_comment": user_comment,
-                "original_content": content[:200] + ("..." if len(content) > 200 else "")  # 디버깅용 원본 콘텐츠 일부 포함
-            }
-            
-            return templates.TemplateResponse("generator.html", {
-                "request": request,
-                "message": f"❌ 재생성 실패: {str(ve)}",
-                "content": json.dumps(error_response),
-                "parsed": error_response,
-                "user_comment": user_comment
-            })
-            
-        except Exception as e:
-            logger.error(f"콘텐츠 처리 중 오류: {str(e)}")
-            
-            error_response = {
-                "error": f"콘텐츠 처리 중 오류: {str(e)}",
-                "user_comment": user_comment,
-                "original_content": content[:200] + ("..." if len(content) > 200 else "")  # 디버깅용 원본 콘텐츠 일부 포함
-            }
-            
-            return templates.TemplateResponse("generator.html", {
-                "request": request,
-                "message": f"❌ 재생성 실패: {str(e)}",
-                "content": json.dumps(error_response),
-                "parsed": error_response,
-                "user_comment": user_comment
-            })
-            
-    except Exception as e:
-        logger.error(f"콘텐츠 재생성 중 오류: {str(e)}")
-        
-        error_response = {
-            "error": f"콘텐츠 재생성 중 오류가 발생했습니다: {str(e)}",
+@handle_route_errors
+async def regenerate_content(
+    request: Request, 
+    content: str = Form(...), 
+    user_comment: str = Form(...),
+    generator = Depends(get_content_generator)
+):
+    """
+    사용자 코멘트를 반영하여 콘텐츠를 재생성합니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        content: 원본 콘텐츠 JSON
+        user_comment: 사용자의 추가 요구사항
+        generator: ContentGenerator 인스턴스 (의존성 주입)
+    """
+    logger.info(f"콘텐츠 재생성 요청: 코멘트 길이 {len(user_comment)}")
+    
+    # 입력 데이터 유효성 검사
+    if not content or content.isspace():
+        raise ValueError("콘텐츠 데이터가 비어있습니다.")
+    
+    # 콘텐츠 파싱
+    content_data = safely_parse_json(content)
+    
+    # 재생성 요청
+    regenerated_data = generator.regenerate(content_data, user_comment)
+    
+    # JSON 문자열로 변환
+    raw_regenerated = json.dumps(regenerated_data, ensure_ascii=False)
+    logger.info(f"콘텐츠 재생성 완료: {regenerated_data.get('type')} / {regenerated_data.get('level')}")
+    
+    return templates.TemplateResponse(
+        "generator.html", 
+        {
+            "request": request,
+            "content": raw_regenerated,
+            "parsed": regenerated_data,
             "user_comment": user_comment
         }
-        
-        return templates.TemplateResponse("generator.html", {
-            "request": request,
-            "message": f"❌ 재생성 실패: {str(e)}",
-            "content": json.dumps(error_response),
-            "parsed": error_response,
-            "user_comment": user_comment
-        })
+    )
 
 
 @app.post("/confirm", response_class=HTMLResponse)
-def confirm_content(request: Request, content: str = Form(...)):
-    """편집된 콘텐츠를 확인하고 저장합니다."""
-    logger.info(f"confirm 데이터 타입: {type(content)}")
-    logger.info(f"confirm 데이터 앞부분: {content[:150]}..." if len(content) > 150 else content)
+@handle_route_errors
+async def confirm_content(
+    request: Request, 
+    content: str = Form(...),
+    storage = Depends(get_content_storage)
+):
+    """
+    편집된 콘텐츠를 확인하고 저장합니다.
     
-    try:
-        if not content or content.isspace():
-            raise ValueError("빈 콘텐츠가 전송되었습니다.")
-        
-        # 콘텐츠 처리: 문자열 → 딕셔너리 변환
-        try:
-            # 1. 직접 파싱 시도
-            try:
-                parsed = json.loads(content)
-                logger.info("첫 번째 JSON 파싱 시도 성공: %s", type(parsed))
-                
-                # 만약 여전히 문자열이라면 다시 파싱 시도 (이중 문자열화된 경우)
-                if isinstance(parsed, str):
-                    logger.warning("파싱 결과가 문자열입니다. 다시 파싱 시도합니다.")
-                    parsed = json.loads(parsed)
-                    logger.info("두 번째 JSON 파싱 시도 성공: %s", type(parsed))
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON 파싱 오류: {str(e)}")
-                
-                # 2. 이스케이프된 문자열이라면 처리 시도
-                if content.startswith('"') and content.endswith('"'):
-                    try:
-                        unescaped = content[1:-1].replace('\\"', '"')
-                        parsed = json.loads(unescaped)
-                        logger.info("이스케이프 처리 후 JSON 파싱 성공: %s", type(parsed))
-                    except json.JSONDecodeError as e2:
-                        logger.error(f"이스케이프 처리 후에도 JSON 파싱 오류: {str(e2)}")
-                        
-                        # 3. 콤마 오류 수정 시도 (Expecting ',' delimiter)
-                        if "delimiter" in str(e2) and "," in str(e2) and hasattr(e2, 'pos'):
-                            try:
-                                pos = e2.pos
-                                fixed_content = unescaped[:pos] + "," + unescaped[pos:]
-                                parsed = json.loads(fixed_content)
-                                logger.info("콤마 추가 후 JSON 파싱 성공: %s", type(parsed))
-                            except json.JSONDecodeError as e3:
-                                logger.error(f"콤마 추가 후에도 JSON 파싱 오류: {str(e3)}")
-                                raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e2)}")
-                        else:
-                            raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e2)}")
-                else:
-                    # 4. 콤마 오류 수정 시도
-                    if "delimiter" in str(e) and "," in str(e) and hasattr(e, 'pos'):
-                        try:
-                            pos = e.pos
-                            fixed_content = content[:pos] + "," + content[pos:]
-                            parsed = json.loads(fixed_content)
-                            logger.info("콤마 추가 후 JSON 파싱 성공: %s", type(parsed))
-                        except json.JSONDecodeError as e2:
-                            logger.error(f"콤마 추가 후에도 JSON 파싱 오류: {str(e2)}")
-                            raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
-                    else:
-                        raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
-            
-            # 5. 결과 유효성 검사
-            if not isinstance(parsed, dict):
-                logger.error(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(parsed)}")
-                
-                # 5-1. 문자열인 경우 마지막으로 한 번 더 파싱 시도
-                if isinstance(parsed, str):
-                    try:
-                        parsed = json.loads(parsed)
-                        logger.info("마지막 JSON 파싱 시도 성공: %s", type(parsed))
-                        
-                        if not isinstance(parsed, dict):
-                            raise ValueError(f"최종 파싱 결과가 딕셔너리가 아닙니다: {type(parsed)}")
-                    except json.JSONDecodeError as e:
-                        logger.error(f"마지막 JSON 파싱 시도 실패: {str(e)}")
-                        raise ValueError(f"유효한 JSON 형식이 아닙니다: {str(e)}")
-                else:
-                    raise ValueError(f"파싱된 데이터가 딕셔너리가 아닙니다: {type(parsed)}")
-            
-            # 저장
-            content_id = content_storage.save_content(parsed)
-            logger.info(f"콘텐츠 저장 완료: {content_id}")
-            
-            return templates.TemplateResponse("generator.html", {
-                "request": request,
-                "message": "✅ 저장 완료! 콘텐츠가 성공적으로 저장되었습니다.",
-                "content": None
-            })
-            
-        except ValueError as ve:
-            logger.error(f"콘텐츠 처리 중 오류: {str(ve)}")
-            return templates.TemplateResponse("generator.html", {
-                "request": request,
-                "message": f"❌ 저장 실패: {str(ve)}",
-                "content": content
-            })
-            
-        except Exception as e:
-            logger.error(f"콘텐츠 처리 중 예외 발생: {str(e)}")
-            return templates.TemplateResponse("generator.html", {
-                "request": request,
-                "message": f"❌ 저장 실패: {str(e)}",
-                "content": content
-            })
+    Args:
+        request: FastAPI 요청 객체
+        content: 저장할 콘텐츠 JSON
+        storage: ContentStorage 인스턴스 (의존성 주입)
+    """
+    logger.info(f"콘텐츠 저장 요청: 데이터 길이 {len(content)}")
     
-    except Exception as e:
-        logger.error(f"콘텐츠 저장 중 오류: {str(e)}")
-        
-        return templates.TemplateResponse("generator.html", {
+    # 입력 데이터 유효성 검사
+    if not content or content.isspace():
+        raise ValueError("빈 콘텐츠가 전송되었습니다.")
+    
+    # 콘텐츠 파싱
+    parsed = safely_parse_json(content)
+    
+    # 저장
+    content_id = storage.save_content(parsed)
+    logger.info(f"콘텐츠 저장 완료: {content_id}")
+    
+    return templates.TemplateResponse(
+        "generator.html", 
+        {
             "request": request,
-            "message": f"❌ 저장 실패: {str(e)}",
-            "content": content
-        })
+            "message": "✅ 저장 완료! 콘텐츠가 성공적으로 저장되었습니다.",
+            "content": None
+        }
+    )
 
 
 @app.get("/confirmed", response_class=HTMLResponse)
-def show_confirmed(request: Request):
-    """저장된 모든 콘텐츠를 표시합니다."""
-    # 최신 데이터 로드
-    data = content_storage.load()
+@handle_route_errors
+async def show_confirmed(
+    request: Request,
+    search: Optional[str] = None,
+    type_filter: Optional[str] = None,
+    level_filter: Optional[str] = None,
+    storage = Depends(get_content_storage)
+):
+    """
+    저장된 모든 콘텐츠를 표시합니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        search: 검색어 (선택 사항)
+        type_filter: 콘텐츠 유형 필터 (선택 사항)
+        level_filter: 콘텐츠 레벨 필터 (선택 사항)
+        storage: ContentStorage 인스턴스 (의존성 주입)
+    """
+    # 콘텐츠 검색
+    data = storage.search_contents(search, type_filter, level_filter)
+    
+    # 사용 가능한 유형 및 레벨 목록 수집
+    types = set()
+    levels = set()
+    for item in storage.get_all():
+        if isinstance(item, dict):
+            if "type" in item and item["type"]:
+                types.add(item["type"])
+            if "level" in item and item["level"]:
+                levels.add(item["level"])
     
     logger.info(f"저장된 콘텐츠 페이지 로드: {len(data)}개 항목")
-    return templates.TemplateResponse("confirmed.html", {
-        "request": request,
-        "data": data
-    })
+    return templates.TemplateResponse(
+        "confirmed.html", 
+        {
+            "request": request,
+            "data": data,
+            "search": search,
+            "type_filter": type_filter,
+            "level_filter": level_filter,
+            "types": sorted(types),
+            "levels": sorted(levels)
+        }
+    )
 
 
 @app.get("/content/{content_id}", response_class=HTMLResponse)
-def get_content(request: Request, content_id: str):
-    """특정 콘텐츠의 상세 정보를 표시합니다."""
-    item = content_storage.get_by_id(content_id)
+@handle_route_errors
+async def get_content(
+    request: Request, 
+    content_id: str,
+    storage = Depends(get_content_storage)
+):
+    """
+    특정 콘텐츠의 상세 정보를 표시합니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        content_id: 콘텐츠 ID
+        storage: ContentStorage 인스턴스 (의존성 주입)
+    """
+    item = storage.get_by_id(content_id)
     
     if not item:
         logger.warning(f"존재하지 않는 콘텐츠 ID: {content_id}")
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "message": "요청한 콘텐츠를 찾을 수 없습니다."
-        })
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request,
+                "message": "요청한 콘텐츠를 찾을 수 없습니다."
+            },
+            status_code=404
+        )
     
     logger.info(f"콘텐츠 상세 보기: {content_id}")
-    return templates.TemplateResponse("content_detail.html", {
-        "request": request,
-        "item": item
-    })
+    return templates.TemplateResponse(
+        "content_detail.html", 
+        {
+            "request": request,
+            "item": item
+        }
+    )
 
 
 @app.get("/delete/{content_id}")
-def delete_content(request: Request, content_id: str):
-    """특정 콘텐츠를 삭제합니다."""
-    try:
-        if content_storage.delete(content_id):
-            logger.info(f"콘텐츠 삭제 성공: {content_id}")
-            return RedirectResponse(url="/confirmed", status_code=303)
-        else:
-            logger.warning(f"삭제할 콘텐츠를 찾을 수 없음: {content_id}")
-            return templates.TemplateResponse("error.html", {
+@handle_route_errors
+async def delete_content(
+    request: Request, 
+    content_id: str,
+    storage = Depends(get_content_storage)
+):
+    """
+    특정 콘텐츠를 삭제합니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        content_id: 삭제할 콘텐츠 ID
+        storage: ContentStorage 인스턴스 (의존성 주입)
+    """
+    if storage.delete(content_id):
+        logger.info(f"콘텐츠 삭제 성공: {content_id}")
+        return RedirectResponse(url="/confirmed", status_code=303)
+    else:
+        logger.warning(f"삭제할 콘텐츠를 찾을 수 없음: {content_id}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
                 "request": request,
                 "message": "삭제할 콘텐츠를 찾을 수 없습니다."
-            })
-    except Exception as e:
-        logger.error(f"콘텐츠 삭제 중 오류: {str(e)}")
-        return templates.TemplateResponse("error.html", {
+            },
+            status_code=404
+        )
+
+
+@app.get("/trash/{content_id}")
+@handle_route_errors
+async def trash_content(
+    request: Request, 
+    content_id: str,
+    storage = Depends(get_content_storage)
+):
+    """
+    특정 콘텐츠를 휴지통으로 이동합니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        content_id: 이동할 콘텐츠 ID
+        storage: ContentStorage 인스턴스 (의존성 주입)
+    """
+    if storage.trash(content_id):
+        logger.info(f"콘텐츠 휴지통 이동 성공: {content_id}")
+        return RedirectResponse(url="/confirmed", status_code=303)
+    else:
+        logger.warning(f"휴지통으로 이동할 콘텐츠를 찾을 수 없음: {content_id}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request,
+                "message": "휴지통으로 이동할 콘텐츠를 찾을 수 없습니다."
+            },
+            status_code=404
+        )
+
+
+@app.get("/trash")
+@handle_route_errors
+async def show_trash(
+    request: Request,
+    storage = Depends(get_content_storage)
+):
+    """
+    휴지통의 콘텐츠를 표시합니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        storage: ContentStorage 인스턴스 (의존성 주입)
+    """
+    data = storage.get_trash()
+    
+    logger.info(f"휴지통 페이지 로드: {len(data)}개 항목")
+    return templates.TemplateResponse(
+        "trash.html", 
+        {
             "request": request,
-            "message": f"콘텐츠 삭제 중 오류가 발생했습니다: {str(e)}"
-        })
+            "data": data
+        }
+    )
+
+
+@app.get("/restore/{content_id}")
+@handle_route_errors
+async def restore_content(
+    request: Request, 
+    content_id: str,
+    storage = Depends(get_content_storage)
+):
+    """
+    휴지통에서 콘텐츠를 복원합니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        content_id: 복원할 콘텐츠 ID
+        storage: ContentStorage 인스턴스 (의존성 주입)
+    """
+    if storage.restore(content_id):
+        logger.info(f"콘텐츠 복원 성공: {content_id}")
+        return RedirectResponse(url="/trash", status_code=303)
+    else:
+        logger.warning(f"복원할 콘텐츠를 찾을 수 없음: {content_id}")
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request,
+                "message": "복원할 콘텐츠를 찾을 수 없습니다."
+            },
+            status_code=404
+        )
+
+
+@app.get("/empty-trash")
+@handle_route_errors
+async def empty_trash(
+    request: Request,
+    storage = Depends(get_content_storage)
+):
+    """
+    휴지통을 비웁니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        storage: ContentStorage 인스턴스 (의존성 주입)
+    """
+    count = storage.empty_trash()
+    logger.info(f"휴지통 비우기 완료: {count}개 항목 삭제")
+    
+    return RedirectResponse(url="/trash", status_code=303)
+
+
+@app.get("/backup")
+@handle_route_errors
+async def backup_data(
+    request: Request,
+    storage = Depends(get_content_storage)
+):
+    """
+    데이터 백업을 생성하고 다운로드합니다.
+    
+    Args:
+        request: FastAPI 요청 객체
+        storage: ContentStorage 인스턴스 (의존성 주입)
+    """
+    from fastapi.responses import FileResponse
+    import os
+    
+    # 수동 백업 생성
+    backup_path = storage.create_manual_backup(storage.get_all())
+    
+    if not backup_path or not os.path.exists(backup_path):
+        return templates.TemplateResponse(
+            "error.html", 
+            {
+                "request": request,
+                "message": "백업 파일 생성에 실패했습니다."
+            },
+            status_code=500
+        )
+    
+    logger.info(f"데이터 백업 다운로드: {os.path.basename(backup_path)}")
+    return FileResponse(
+        path=backup_path,
+        filename=os.path.basename(backup_path),
+        media_type="application/json"
+    )

@@ -1,0 +1,70 @@
+2025-04-21 19:26:17 - INFO - topik_generator - TOPIK 문제 생성기 애플리케이션 시작
+2025-04-21 19:26:17 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 콘텐츠를 로드했습니다.
+2025-04-21 19:26:17 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:26:54 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 콘텐츠를 로드했습니다.
+2025-04-21 19:26:54 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:27:58 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 콘텐츠를 로드했습니다.
+2025-04-21 19:27:58 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:28:31 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 콘텐츠를 로드했습니다.
+2025-04-21 19:28:31 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:28:52 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 콘텐츠를 로드했습니다.
+2025-04-21 19:28:52 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:29:14 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 콘텐츠를 로드했습니다.
+2025-04-21 19:29:14 - INFO - topik_generator - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:34:11 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 항목을 로드했습니다.
+2025-04-21 19:34:11 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:34:50 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 항목을 로드했습니다.
+2025-04-21 19:34:50 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:36:27 - INFO - topik_generator - 콘텐츠 생성 요청: dialogue / 고급
+2025-04-21 19:36:27 - INFO - topik_generator.generator - 콘텐츠 생성 시작: dialogue / 고급
+2025-04-21 19:36:32 - INFO - topik_generator.generator - 콘텐츠 생성 성공: dialogue / 고급
+2025-04-21 19:36:32 - INFO - topik_generator - 콘텐츠 생성 완료: dialogue / 고급
+2025-04-21 19:36:52 - INFO - topik_generator - 콘텐츠 재생성 요청: 코멘트 길이 14
+2025-04-21 19:36:52 - INFO - topik_generator.generator - 콘텐츠 재생성 시작: dialogue / 고급
+2025-04-21 19:37:10 - INFO - topik_generator.generator - JSON 객체 패턴으로 추출 성공
+2025-04-21 19:37:10 - INFO - topik_generator.generator - 콘텐츠 재생성 성공: dialogue / 고급
+2025-04-21 19:37:10 - INFO - topik_generator - 콘텐츠 재생성 완료: dialogue / 고급
+2025-04-21 19:37:22 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 항목을 로드했습니다.
+2025-04-21 19:37:22 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:22 - INFO - topik_generator - 콘텐츠 저장 요청: 데이터 길이 2347
+2025-04-21 19:37:22 - INFO - topik_generator.storage - 5개의 항목을 '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에 저장했습니다.
+2025-04-21 19:37:22 - INFO - topik_generator - 콘텐츠 저장 완료: b1ec6df4-95fb-415c-b5d9-516d1402d269
+2025-04-21 19:37:23 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 5개의 항목을 로드했습니다.
+2025-04-21 19:37:23 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:23 - INFO - topik_generator - 저장된 콘텐츠 페이지 로드: 5개 항목
+2025-04-21 19:37:29 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 5개의 항목을 로드했습니다.
+2025-04-21 19:37:29 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:29 - INFO - topik_generator.storage - 1개의 휴지통 항목을 '/Users/gap/Desktop/TOPIK/data/trash.json'에 저장했습니다.
+2025-04-21 19:37:29 - INFO - topik_generator.storage - 항목을 휴지통으로 이동: 4d705876-41e5-4dca-a148-c81bbeb4a91c
+2025-04-21 19:37:29 - INFO - topik_generator.storage - 4개의 항목을 '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에 저장했습니다.
+2025-04-21 19:37:29 - INFO - topik_generator - 콘텐츠 휴지통 이동 성공: 4d705876-41e5-4dca-a148-c81bbeb4a91c
+2025-04-21 19:37:29 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 항목을 로드했습니다.
+2025-04-21 19:37:29 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 1개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:29 - INFO - topik_generator - 저장된 콘텐츠 페이지 로드: 4개 항목
+2025-04-21 19:37:31 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 항목을 로드했습니다.
+2025-04-21 19:37:31 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 1개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:31 - INFO - topik_generator - 휴지통 페이지 로드: 1개 항목
+2025-04-21 19:37:36 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 4개의 항목을 로드했습니다.
+2025-04-21 19:37:36 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 1개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:36 - INFO - topik_generator.storage - 0개의 휴지통 항목을 '/Users/gap/Desktop/TOPIK/data/trash.json'에 저장했습니다.
+2025-04-21 19:37:36 - INFO - topik_generator.storage - 항목을 휴지통에서 복원: 4d705876-41e5-4dca-a148-c81bbeb4a91c
+2025-04-21 19:37:36 - INFO - topik_generator.storage - 5개의 항목을 '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에 저장했습니다.
+2025-04-21 19:37:36 - INFO - topik_generator - 콘텐츠 복원 성공: 4d705876-41e5-4dca-a148-c81bbeb4a91c
+2025-04-21 19:37:36 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 5개의 항목을 로드했습니다.
+2025-04-21 19:37:36 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:36 - INFO - topik_generator - 휴지통 페이지 로드: 0개 항목
+2025-04-21 19:37:37 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 5개의 항목을 로드했습니다.
+2025-04-21 19:37:37 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:37 - INFO - topik_generator - 저장된 콘텐츠 페이지 로드: 5개 항목
+2025-04-21 19:37:40 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 5개의 항목을 로드했습니다.
+2025-04-21 19:37:40 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:40 - INFO - topik_generator - 콘텐츠 상세 보기: 9bab6a45-d889-4da3-a3c6-684695de5e18
+2025-04-21 19:37:44 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 5개의 항목을 로드했습니다.
+2025-04-21 19:37:44 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:44 - INFO - topik_generator - 콘텐츠 상세 보기: 9bab6a45-d889-4da3-a3c6-684695de5e18
+2025-04-21 19:37:49 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 5개의 항목을 로드했습니다.
+2025-04-21 19:37:49 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:49 - INFO - topik_generator - 콘텐츠 상세 보기: 4d705876-41e5-4dca-a148-c81bbeb4a91c
+2025-04-21 19:37:51 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/confirmed_questions.json'에서 5개의 항목을 로드했습니다.
+2025-04-21 19:37:51 - INFO - topik_generator.storage - '/Users/gap/Desktop/TOPIK/data/trash.json'에서 0개의 휴지통 항목을 로드했습니다.
+2025-04-21 19:37:51 - INFO - topik_generator - 콘텐츠 상세 보기: b1ec6df4-95fb-415c-b5d9-516d1402d269
